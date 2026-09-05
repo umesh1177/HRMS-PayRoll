@@ -562,25 +562,56 @@ async function getMe(req, res, next) {
       permissions.push('system.admin');
     }
 
+    let firstName = user.first_name;
+    let lastName = user.last_name;
+    let employeeCode = user.employee_code;
+    let departmentName = user.department_name;
+    let jobPositionName = user.job_position_name;
+    let managerName = user.manager_name;
+    let workingScheduleName = user.working_schedule_name;
+    let dateJoined = user.date_joined;
+
+    const isAdmin = assignedRoles.some((r) => r.name === 'Admin' || r.id === 1);
+
+    if (!firstName && !lastName) {
+      if (isAdmin) {
+        firstName = 'System';
+        lastName = 'Administrator';
+        employeeCode = employeeCode || 'ADM-001';
+        departmentName = departmentName || 'Executive & Board';
+        jobPositionName = jobPositionName || 'System Administrator';
+        managerName = managerName || 'Executive Board';
+        workingScheduleName = workingScheduleName || 'Standard Full-Time (40h)';
+      } else {
+        const parts = (user.email || '').split('@')[0].split('.');
+        firstName = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'User';
+        lastName = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : '';
+        employeeCode = employeeCode || `EMP-${String(user.id).padStart(3, '0')}`;
+        departmentName = departmentName || 'General Operations';
+        jobPositionName = jobPositionName || (assignedRoles[0]?.name || 'Staff');
+        workingScheduleName = workingScheduleName || 'Standard 40 Hours';
+      }
+    }
+
     res.status(200).json({
       data: {
         id: user.id,
-        employee_id: user.employee_id,
-        employee_code: user.employee_code || null,
+        employee_id: user.employee_id || null,
+        employee_code: employeeCode,
         email: user.email,
         role_id: user.role_id,
         role: assignedRoles.map((r) => r.name).join(', '),
         roles: assignedRoles,
         role_ids: assignedRoleIds,
-        first_name: user.first_name || null,
-        last_name: user.last_name || null,
+        first_name: firstName,
+        last_name: lastName,
         phone: user.phone || null,
         photo_url: user.photo_url || null,
-        department_name: user.department_name || null,
-        job_position_name: user.job_position_name || null,
-        manager_name: user.manager_name || null,
-        working_schedule_name: user.working_schedule_name || null,
-        date_joined: user.date_joined || null,
+        department_name: departmentName || 'General Operations',
+        job_position_name: jobPositionName || (assignedRoles[0]?.name || 'Staff'),
+        manager_name: managerName || 'Executive Management',
+        working_schedule_name: workingScheduleName || 'Standard Full-Time (40h)',
+        date_joined: dateJoined || null,
         status: user.status,
         permissions
       }
@@ -621,8 +652,25 @@ async function updateMyProfile(req, res, next) {
 
     await connection.beginTransaction();
 
-    // 1. If linked employee exists, update personal non-critical fields
-    if (employeeId) {
+    // 1. If employee record does not exist yet, create one so user profile persists
+    if (!employeeId) {
+      const isAdm = req.user.role_id === 1;
+      const empCode = isAdm ? `ADM-${String(userId).padStart(3, '0')}` : `EMP-${String(userId).padStart(3, '0')}`;
+      const [insertResult] = await connection.query(
+        `INSERT INTO employees (employee_code, first_name, last_name, email, phone, photo_url, status, date_joined)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', CURDATE())`,
+        [
+          empCode,
+          first_name ? first_name.trim() : (isAdm ? 'System' : 'User'),
+          last_name ? last_name.trim() : (isAdm ? 'Admin' : ''),
+          user.email,
+          phone ? phone.trim() : null,
+          photo_url ? photo_url.trim() : null
+        ]
+      );
+      employeeId = insertResult.insertId;
+      await connection.query('UPDATE users SET employee_id = ? WHERE id = ?', [employeeId, userId]);
+    } else {
       const updateEmpFields = [];
       const empParams = [];
 

@@ -43,15 +43,34 @@ import { formatDate } from '../utils/formatters';
 export default function ProfilePage() {
   const { user, updateCachedUser } = useAuth();
 
+  const getInitialFirstName = () => {
+    if (user?.first_name) return user.first_name;
+    if (user?.role === 'Admin' || user?.role_name === 'Admin') return 'System';
+    const emailPrefix = user?.email?.split('@')[0] || '';
+    const part = emailPrefix.split('.')[0] || 'User';
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  };
+
+  const getInitialLastName = () => {
+    if (user?.last_name) return user.last_name;
+    if (user?.role === 'Admin' || user?.role_name === 'Admin') return 'Administrator';
+    const emailPrefix = user?.email?.split('@')[0] || '';
+    const parts = emailPrefix.split('.');
+    if (parts.length > 1) {
+      return parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+    }
+    return '';
+  };
+
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState(null);
 
   // Editable Profile Form State
   const [form, setForm] = useState({
-    first_name: '',
-    last_name: '',
-    phone: '',
-    photo_url: ''
+    first_name: getInitialFirstName(),
+    last_name: getInitialLastName(),
+    phone: user?.phone || '',
+    photo_url: user?.photo_url || ''
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState('');
@@ -79,8 +98,8 @@ export default function ProfilePage() {
         const data = res.data.data;
         setProfileData(data);
         setForm({
-          first_name: data.first_name || '',
-          last_name: data.last_name || '',
+          first_name: data.first_name || getInitialFirstName(),
+          last_name: data.last_name !== null && data.last_name !== undefined ? data.last_name : getInitialLastName(),
           phone: data.phone || '',
           photo_url: data.photo_url || ''
         });
@@ -468,7 +487,7 @@ export default function ProfilePage() {
                   Employee ID
                 </span>
                 <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded">
-                  {profileData?.employee_code || 'N/A'}
+                  {profileData?.employee_code || (user?.role === 'Admin' || user?.role_name === 'Admin' ? 'ADM-001' : (user?.employee_code || `EMP-${String(user?.id || 1).padStart(3, '0')}`))}
                 </span>
               </div>
 
@@ -490,7 +509,7 @@ export default function ProfilePage() {
                   Department
                 </span>
                 <span className="text-xs font-semibold text-blue-gray-800">
-                  {profileData?.department_name || 'General Operations'}
+                  {profileData?.department_name || (user?.role === 'Admin' || user?.role_name === 'Admin' ? 'Executive & Board' : 'General Operations')}
                 </span>
               </div>
 
@@ -501,7 +520,7 @@ export default function ProfilePage() {
                   Job Position
                 </span>
                 <span className="text-xs font-semibold text-blue-gray-800">
-                  {profileData?.job_position_name || profileData?.role || 'Staff'}
+                  {profileData?.job_position_name || profileData?.role || user?.role || 'Staff'}
                 </span>
               </div>
 
@@ -534,7 +553,7 @@ export default function ProfilePage() {
                   Date of Joining
                 </span>
                 <span className="text-xs font-semibold text-blue-gray-800">
-                  {profileData?.date_joined ? formatDate(profileData.date_joined) : 'Permanent'}
+                  {profileData?.date_joined ? formatDate(profileData.date_joined) : 'Active Member'}
                 </span>
               </div>
 
@@ -557,7 +576,7 @@ export default function ProfilePage() {
                   ) : (
                     <Chip
                       size="sm"
-                      value={profileData?.role || 'Employee'}
+                      value={profileData?.role || user?.role || 'Employee'}
                       className="bg-blue-gray-100 text-blue-gray-800 text-[10px] font-semibold"
                     />
                   )}
