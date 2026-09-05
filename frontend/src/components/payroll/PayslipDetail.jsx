@@ -24,7 +24,7 @@ import {
   PrinterIcon
 } from '@heroicons/react/24/outline';
 import Modal from '../common/Modal';
-import axiosClient from '../../api/axiosClient';
+import { printPayslip, downloadPayslip } from '../../utils/payslipPrinter';
 
 /**
  * Payslip Detail Modal.
@@ -38,6 +38,8 @@ import axiosClient from '../../api/axiosClient';
 export default function PayslipDetail({ open, onClose, payslip }) {
   const [detailedSlip, setDetailedSlip] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (open && payslip?.id) {
@@ -57,12 +59,26 @@ export default function PayslipDetail({ open, onClose, payslip }) {
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handlePrint = async () => {
     if (!payslip?.id) return;
-    const token = localStorage.getItem('token');
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-    // Open printable HTML/PDF in new window with authentication
-    window.open(`${baseUrl}/payroll/payslips/${payslip.id}/pdf?token=${token}`, '_blank');
+    setPrinting(true);
+    try {
+      await printPayslip(payslip.id);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!payslip?.id) return;
+    setDownloading(true);
+    try {
+      const code = detailedSlip?.employee_code || payslip.employee_code || 'EMP';
+      const period = `${payslip.period_start || ''}_${payslip.period_end || ''}`;
+      await downloadPayslip(payslip.id, `payslip-${code}-${period}.html`);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (!payslip) return null;
@@ -83,13 +99,28 @@ export default function PayslipDetail({ open, onClose, payslip }) {
             Close
           </Button>
 
-          <Button
-            color="indigo"
-            onClick={handleDownloadPdf}
-            className="flex items-center gap-2"
-          >
-            <PrinterIcon className="h-4 w-4" /> Download / Print Payslip
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outlined"
+              color="indigo"
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex items-center gap-2 text-xs py-2 px-3"
+            >
+              <DocumentArrowDownIcon className="h-4 w-4" />
+              {downloading ? 'Downloading...' : 'Download File'}
+            </Button>
+
+            <Button
+              color="indigo"
+              onClick={handlePrint}
+              disabled={printing}
+              className="flex items-center gap-2 text-xs py-2 px-3 shadow-md"
+            >
+              <PrinterIcon className="h-4 w-4" />
+              {printing ? 'Preparing Print...' : 'Print / Save as PDF'}
+            </Button>
+          </div>
         </div>
       }
     >

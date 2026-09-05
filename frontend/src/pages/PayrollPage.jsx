@@ -38,6 +38,7 @@ import SalaryRuleList from '../components/payroll/SalaryRuleList';
 
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
+import { printPayslip } from '../utils/payslipPrinter';
 
 import mockPayruns from '../api/mocks/payruns.json';
 import mockPayslips from '../api/mocks/payslips.json';
@@ -166,9 +167,8 @@ export default function PayrollPage() {
   };
 
   const handlePrintPdf = (slip) => {
-    const token = localStorage.getItem('token');
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-    window.open(`${baseUrl}/payroll/payslips/${slip.id}/pdf?token=${token}`, '_blank');
+    if (!slip?.id) return;
+    printPayslip(slip.id);
   };
 
   return (
