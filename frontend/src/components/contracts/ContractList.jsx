@@ -44,12 +44,26 @@ export default function ContractList({
 
   const columns = [
     {
+      key: 'name',
+      label: 'Contract Name',
+      render: (row) => (
+        <div>
+          <p className="font-bold text-xs text-blue-gray-900 leading-tight">
+            {row.name || `${(row.contract_type || 'Standard').toUpperCase()} Contract`}
+          </p>
+          <span className="text-[11px] text-blue-gray-400 capitalize">
+            {row.contract_type?.replace('_', ' ')}
+          </span>
+        </div>
+      )
+    },
+    {
       key: 'employee_name',
       label: 'Employee',
       render: (row) => (
         <div>
-          <p className="font-semibold text-sm text-blue-gray-800">{row.employee_name}</p>
-          <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+          <p className="font-semibold text-xs text-blue-gray-800">{row.employee_name}</p>
+          <span className="font-mono text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-bold">
             {row.employee_code}
           </span>
         </div>

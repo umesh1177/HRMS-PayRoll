@@ -177,9 +177,11 @@ export default function EmployeeDetail({ open, onClose, employee }) {
                 {contracts.map((c) => (
                   <div key={c.id} className="p-3 rounded-lg border border-blue-gray-100 flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-sm text-blue-gray-800">{c.structure_name || 'Regular Structure'}</p>
+                      <p className="font-bold text-sm text-blue-gray-800">
+                        {c.name || c.structure_name || 'Regular Structure'}
+                      </p>
                       <p className="text-xs text-blue-gray-500">
-                        {c.start_date} {c.end_date ? `to ${c.end_date}` : '(Open-ended)'} • {c.contract_type}
+                        {c.start_date} {c.end_date ? `to ${c.end_date}` : '(Open-ended)'} • <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
                       </p>
                     </div>
                     <div className="text-right">

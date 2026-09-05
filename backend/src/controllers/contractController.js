@@ -71,6 +71,7 @@ async function listContracts(req, res, next) {
     const listSql = `
       SELECT 
         c.id,
+        c.name,
         c.employee_id,
         CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
         e.employee_code,
@@ -133,6 +134,7 @@ async function getContractById(req, res, next) {
     let query = `
       SELECT 
         c.id,
+        c.name,
         c.employee_id,
         CONCAT(e.first_name, ' ', e.last_name) AS employee_name,
         e.employee_code,
@@ -182,12 +184,15 @@ async function getContractById(req, res, next) {
 }
 
 /**
- * Creates a new contract with overlap validation for running contracts.
+ * Creates a new contract (or batch creates contracts for multiple employees).
  */
 async function createContract(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const {
+      name,
       employee_id,
+      employee_ids,
       job_position_id,
       department_id,
       working_schedule_id,
@@ -199,8 +204,20 @@ async function createContract(req, res, next) {
       status
     } = req.body;
 
-    if (!employee_id || !salary_structure_id || wage === undefined || !start_date) {
-      return next(createValidationError('employee_id, salary_structure_id, wage, and start_date are required'));
+    // Support both single employee_id and multiple employee_ids
+    let targetEmployeeIds = [];
+    if (Array.isArray(employee_ids) && employee_ids.length > 0) {
+      targetEmployeeIds = employee_ids.map((id) => Number(id)).filter((id) => !isNaN(id) && id > 0);
+    } else if (employee_id) {
+      targetEmployeeIds = [Number(employee_id)];
+    }
+
+    if (targetEmployeeIds.length === 0) {
+      return next(createValidationError('At least one employee must be selected for the contract.', 'employee_ids'));
+    }
+
+    if (!salary_structure_id || wage === undefined || !start_date) {
+      return next(createValidationError('Salary structure, wage, and start_date are required.'));
     }
 
     if (!isValidNumber(wage, 0.01)) {
@@ -215,62 +232,79 @@ async function createContract(req, res, next) {
       return next(createValidationError('end_date must be a valid date on or after start_date', 'end_date'));
     }
 
-    if (contract_type && !isValidEnum(contract_type, ['permanent', 'temporary', 'contractor', 'intern'])) {
-      return next(createValidationError('Invalid contract_type. Allowed: permanent, temporary, contractor, intern', 'contract_type'));
-    }
-
-    if (status && !isValidEnum(status, ['draft', 'running', 'expired', 'cancelled'])) {
-      return next(createValidationError('Invalid status. Allowed: draft, running, expired, cancelled', 'status'));
-    }
-
     const contractStatus = status || 'draft';
+    const contractName = (name && name.trim()) ? name.trim() : null;
 
-    // Enforce "no two overlapping running contracts per employee"
-    // Reference schema.sql lines 274-276
+    // Check for running contract overlaps
     if (contractStatus === 'running') {
-      const overlapCheck = await checkRunningContractOverlap(employee_id, start_date, end_date || null);
-      if (overlapCheck.hasOverlap) {
-        const error = new Error(
-          `Cannot create running contract: employee already has an active running contract (ID #${overlapCheck.conflictingContract.id}) overlapping this date period`
-        );
-        error.status = 409;
-        error.code = 'CONTRACT_OVERLAP_CONFLICT';
-        return next(error);
+      for (const empId of targetEmployeeIds) {
+        const overlapCheck = await checkRunningContractOverlap(empId, start_date, end_date || null);
+        if (overlapCheck.hasOverlap) {
+          const [emp] = await connection.query('SELECT first_name, last_name, employee_code FROM employees WHERE id = ?', [empId]);
+          const empName = emp.length > 0 ? `${emp[0].first_name} ${emp[0].last_name} (${emp[0].employee_code})` : `Employee #${empId}`;
+          const error = new Error(
+            `Cannot create running contract: ${empName} already has an active running contract overlapping this date period.`
+          );
+          error.status = 409;
+          error.code = 'CONTRACT_OVERLAP_CONFLICT';
+          return next(error);
+        }
       }
     }
 
+    await connection.beginTransaction();
+
     const insertSql = `
       INSERT INTO contracts (
-        employee_id, job_position_id, department_id, working_schedule_id,
+        name, employee_id, job_position_id, department_id, working_schedule_id,
         salary_structure_id, wage, contract_type, start_date, end_date, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const [result] = await pool.query(insertSql, [
-      employee_id,
-      job_position_id || null,
-      department_id || null,
-      working_schedule_id || null,
-      salary_structure_id,
-      wage,
-      contract_type || 'permanent',
-      start_date,
-      end_date || null,
-      contractStatus
-    ]);
+    const createdIds = [];
+    for (const empId of targetEmployeeIds) {
+      let finalName = contractName;
+      if (!finalName) {
+        const [emp] = await connection.query('SELECT first_name, last_name FROM employees WHERE id = ?', [empId]);
+        const nameSuffix = emp.length > 0 ? ` (${emp[0].first_name} ${emp[0].last_name})` : '';
+        finalName = `${(contract_type || 'Standard').toUpperCase()} Contract${nameSuffix}`;
+      }
 
-    res.status(201).json({
-      message: 'Contract created successfully',
-      data: {
-        id: result.insertId,
-        employee_id,
+      const [result] = await connection.query(insertSql, [
+        finalName,
+        empId,
+        job_position_id || null,
+        department_id || null,
+        working_schedule_id || null,
         salary_structure_id,
         wage,
+        contract_type || 'permanent',
+        start_date,
+        end_date || null,
+        contractStatus
+      ]);
+      createdIds.push(result.insertId);
+    }
+
+    await connection.commit();
+
+    res.status(201).json({
+      message: targetEmployeeIds.length > 1
+        ? `Successfully created ${targetEmployeeIds.length} contracts for selected employees.`
+        : 'Contract created successfully',
+      data: {
+        ids: createdIds,
+        id: createdIds[0],
+        count: createdIds.length,
+        name: contractName,
         status: contractStatus
       }
     });
   } catch (err) {
+    await connection.rollback();
     next(err);
+  } finally {
+    connection.release();
   }
 }
 
@@ -281,6 +315,7 @@ async function updateContract(req, res, next) {
   try {
     const { id } = req.params;
     const {
+      name,
       job_position_id,
       department_id,
       working_schedule_id,
@@ -325,6 +360,7 @@ async function updateContract(req, res, next) {
 
     const updateSql = `
       UPDATE contracts SET
+        name = COALESCE(?, name),
         job_position_id = COALESCE(?, job_position_id),
         department_id = COALESCE(?, department_id),
         working_schedule_id = COALESCE(?, working_schedule_id),
@@ -338,6 +374,7 @@ async function updateContract(req, res, next) {
     `;
 
     await pool.query(updateSql, [
+      name !== undefined ? name : existing.name,
       job_position_id,
       department_id,
       working_schedule_id,
