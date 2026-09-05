@@ -83,7 +83,7 @@ export default function AppRoutes() {
       <Route
         path="/organization"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="system.admin">
             <DashboardLayout>
               <OrganizationPage />
             </DashboardLayout>
