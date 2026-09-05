@@ -26,6 +26,7 @@ const contractRoutes = require('./routes/contractRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const timeoffRoutes = require('./routes/timeoffRoutes');
 const payrollRoutes = require('./routes/payrollRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 
@@ -72,6 +73,7 @@ apiRouter.use('/contracts', contractRoutes);
 apiRouter.use('/attendance', attendanceRoutes);
 apiRouter.use('/timeoff', timeoffRoutes);
 apiRouter.use('/payroll', payrollRoutes);
+apiRouter.use('/dashboard', dashboardRoutes);
 
 // Mount /api/v1 prefix
 app.use('/api/v1', apiRouter);
