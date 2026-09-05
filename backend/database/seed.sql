@@ -49,12 +49,11 @@ UPDATE departments SET manager_id = 3 WHERE id = 2;
 -- hrmanager@peoplepay360.com   -> HR@123
 -- payrollmgr@peoplepay360.com  -> Payroll@123
 -- employee@peoplepay360.com    -> Emp@123
-INSERT INTO users (id, employee_id, email, password_hash, role_id, status) VALUES
-  (1, NULL, 'admin@peoplepay360.com', '$2b$10$RGw8APgrh6D0ejyKIvcbwuEkedG1R8XOpPhZySa1d76zqhYirUKDu', 1, 'active'),
-  (2, 3, 'hrmanager@peoplepay360.com', '$2b$10$Ep8xHHpsA.jw2rdoGpImHehbUljUl7SUkMISvTLXl/PctT0q9EW1O', 2, 'active'),
-  (3, NULL, 'payrollmgr@peoplepay360.com', '$2b$10$efbI9qteDNOlgvcWfnU8CuIQgCiNaNDM6IAuz5uvlAiquSIKjhq.K', 4, 'active'),
-  (4, 2, 'employee@peoplepay360.com', '$2b$10$y4kFxOQ2.ex3HSyTza5Gh.12JwpO8QoRLE3Pb8/G5Rvd4p3tAAy5.', 5, 'active')
-ON DUPLICATE KEY UPDATE email=VALUES(email);
+REPLACE INTO users (id, employee_id, email, password_hash, role_id, status) VALUES
+  (1, NULL, 'admin@peoplepay360.com', '$2b$10$n0WCUuk.rOrJTewDoVKo.ORCUDKYKJFjArxxpPN3.Hnr7Xgcs/HAK', 1, 'active'),
+  (2, 3, 'hrmanager@peoplepay360.com', '$2b$10$.4y2Ja64AbxCpkE4l0l.PemMHIN141QGFIp8nH.72gkaLCgXQgClu', 2, 'active'),
+  (3, NULL, 'payrollmgr@peoplepay360.com', '$2b$10$xOlwKJgmOOl4wzF2nvkqHusr6DwLU85Ws2U4WkWQIXfAI4TFIYTU2', 4, 'active'),
+  (4, 2, 'employee@peoplepay360.com', '$2b$10$v9EF1/mXOHrHvYTxomHfWOmd8xkQlphMTjAee87dgIWXV187/CAhe', 5, 'active');
 
 -- 5. Salary Structure & Rules
 INSERT INTO salary_structures (id, name, description, status) VALUES
