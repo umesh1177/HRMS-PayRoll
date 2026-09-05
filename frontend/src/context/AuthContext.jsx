@@ -112,6 +112,17 @@ export function AuthProvider({ children }) {
   };
 
   /**
+   * Updates cached user profile in state and localStorage.
+   */
+  const updateCachedUser = (updatedData) => {
+    setUser((prev) => {
+      const merged = { ...prev, ...updatedData };
+      localStorage.setItem('user', JSON.stringify(merged));
+      return merged;
+    });
+  };
+
+  /**
    * Helper to check if the current user possesses a given permission.
    * 
    * CRITICAL SECURITY NOTE (Rule #5):
@@ -137,6 +148,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!token && !!user,
     login,
     logout,
+    updateCachedUser,
     hasPermission
   };
 

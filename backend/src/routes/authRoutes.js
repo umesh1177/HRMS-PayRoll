@@ -22,6 +22,7 @@ router.use(authenticateToken);
 
 // Current user profile & available roles
 router.get('/me', authController.getMe);
+router.put('/profile', authController.updateMyProfile);
 router.get('/roles', authController.listRoles);
 
 // Admin user management (requires 'user.manage' permission)

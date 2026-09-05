@@ -487,6 +487,9 @@ async function listRoles(req, res, next) {
 /**
  * Returns current authenticated user profile, roles, and permissions.
  */
+/**
+ * Returns current authenticated user profile, roles, and permissions with full employee details.
+ */
 async function getMe(req, res, next) {
   try {
     const userId = req.user.id;
@@ -498,12 +501,23 @@ async function getMe(req, res, next) {
         u.role_id, 
         u.status,
         r.name AS role_name,
+        e.employee_code,
         e.first_name,
         e.last_name,
-        e.photo_url
+        e.phone,
+        e.photo_url,
+        e.date_joined,
+        d.name AS department_name,
+        jp.name AS job_position_name,
+        CONCAT(m.first_name, ' ', m.last_name) AS manager_name,
+        ws.name AS working_schedule_name
       FROM users u
-      JOIN roles r ON u.role_id = r.id
-      LEFT JOIN employees e ON u.employee_id = e.id
+      LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN employees e ON u.employee_id = e.id OR u.email = e.email
+      LEFT JOIN departments d ON e.department_id = d.id
+      LEFT JOIN job_positions jp ON e.job_position_id = jp.id
+      LEFT JOIN employees m ON e.manager_id = m.id
+      LEFT JOIN working_schedules ws ON e.working_schedule_id = ws.id
       WHERE u.id = ?
       LIMIT 1
     `;
@@ -552,6 +566,7 @@ async function getMe(req, res, next) {
       data: {
         id: user.id,
         employee_id: user.employee_id,
+        employee_code: user.employee_code || null,
         email: user.email,
         role_id: user.role_id,
         role: assignedRoles.map((r) => r.name).join(', '),
@@ -559,13 +574,175 @@ async function getMe(req, res, next) {
         role_ids: assignedRoleIds,
         first_name: user.first_name || null,
         last_name: user.last_name || null,
+        phone: user.phone || null,
         photo_url: user.photo_url || null,
+        department_name: user.department_name || null,
+        job_position_name: user.job_position_name || null,
+        manager_name: user.manager_name || null,
+        working_schedule_name: user.working_schedule_name || null,
+        date_joined: user.date_joined || null,
         status: user.status,
         permissions
       }
     });
   } catch (err) {
     next(err);
+  }
+}
+
+/**
+ * Self-service profile update for authenticated user.
+ * Allows updating non-critical/personal fields: first_name, last_name, phone, photo_url,
+ * and changing password if requested.
+ */
+async function updateMyProfile(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user.id;
+    const { first_name, last_name, phone, photo_url, current_password, new_password } = req.body;
+
+    // Fetch existing user and password
+    const [users] = await connection.query('SELECT * FROM users WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      const error = new Error('User not found');
+      error.status = 404;
+      return next(error);
+    }
+    const user = users[0];
+
+    // Find linked employee ID (if any)
+    let employeeId = user.employee_id;
+    if (!employeeId) {
+      const [emp] = await connection.query('SELECT id FROM employees WHERE user_id = ? OR email = ? LIMIT 1', [userId, user.email]);
+      if (emp.length > 0) {
+        employeeId = emp[0].id;
+      }
+    }
+
+    await connection.beginTransaction();
+
+    // 1. If linked employee exists, update personal non-critical fields
+    if (employeeId) {
+      const updateEmpFields = [];
+      const empParams = [];
+
+      if (first_name !== undefined) {
+        updateEmpFields.push('first_name = ?');
+        empParams.push(first_name.trim());
+      }
+      if (last_name !== undefined) {
+        updateEmpFields.push('last_name = ?');
+        empParams.push(last_name.trim());
+      }
+      if (phone !== undefined) {
+        updateEmpFields.push('phone = ?');
+        empParams.push(phone ? phone.trim() : null);
+      }
+      if (photo_url !== undefined) {
+        updateEmpFields.push('photo_url = ?');
+        empParams.push(photo_url ? photo_url.trim() : null);
+      }
+
+      if (updateEmpFields.length > 0) {
+        empParams.push(employeeId);
+        await connection.query(`UPDATE employees SET ${updateEmpFields.join(', ')} WHERE id = ?`, empParams);
+      }
+    }
+
+    // 2. If password change is requested
+    if (new_password) {
+      if (typeof new_password !== 'string' || new_password.length < 6) {
+        await connection.rollback();
+        return next(createValidationError('New password must be at least 6 characters long', 'new_password'));
+      }
+
+      if (current_password) {
+        const match = await bcrypt.compare(current_password, user.password_hash);
+        if (!match) {
+          await connection.rollback();
+          const error = new Error('Current password is incorrect');
+          error.status = 400;
+          error.code = 'INVALID_PASSWORD';
+          return next(error);
+        }
+      }
+
+      const newHash = await bcrypt.hash(new_password, SALT_ROUNDS);
+      await connection.query('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
+    }
+
+    await connection.commit();
+
+    // Fetch updated user profile
+    const query = `
+      SELECT 
+        u.id, 
+        u.employee_id, 
+        u.email, 
+        u.role_id, 
+        u.status,
+        r.name AS role_name,
+        e.employee_code,
+        e.first_name,
+        e.last_name,
+        e.phone,
+        e.photo_url,
+        e.date_joined,
+        d.name AS department_name,
+        jp.name AS job_position_name,
+        CONCAT(m.first_name, ' ', m.last_name) AS manager_name,
+        ws.name AS working_schedule_name
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN employees e ON u.employee_id = e.id OR u.email = e.email
+      LEFT JOIN departments d ON e.department_id = d.id
+      LEFT JOIN job_positions jp ON e.job_position_id = jp.id
+      LEFT JOIN employees m ON e.manager_id = m.id
+      LEFT JOIN working_schedules ws ON e.working_schedule_id = ws.id
+      WHERE u.id = ?
+      LIMIT 1
+    `;
+    const [updatedUsers] = await pool.query(query, [userId]);
+    const updatedUser = updatedUsers[0];
+
+    // Fetch all roles
+    const [userRoles] = await pool.query(
+      `SELECT r.id, r.name 
+       FROM user_roles ur
+       JOIN roles r ON ur.role_id = r.id
+       WHERE ur.user_id = ?
+       ORDER BY r.id ASC`,
+      [userId]
+    );
+    let assignedRoles = userRoles.length > 0 ? userRoles : [{ id: updatedUser.role_id, name: updatedUser.role_name }];
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      data: {
+        id: updatedUser.id,
+        employee_id: updatedUser.employee_id,
+        employee_code: updatedUser.employee_code,
+        email: updatedUser.email,
+        role_id: updatedUser.role_id,
+        role: assignedRoles.map((r) => r.name).join(', '),
+        roles: assignedRoles,
+        first_name: updatedUser.first_name || null,
+        last_name: updatedUser.last_name || null,
+        phone: updatedUser.phone || null,
+        photo_url: updatedUser.photo_url || null,
+        department_name: updatedUser.department_name || null,
+        job_position_name: updatedUser.job_position_name || null,
+        manager_name: updatedUser.manager_name || null,
+        working_schedule_name: updatedUser.working_schedule_name || null,
+        date_joined: updatedUser.date_joined || null,
+        status: updatedUser.status
+      }
+    });
+  } catch (err) {
+    await connection.rollback();
+    next(err);
+  } finally {
+    connection.release();
   }
 }
 
@@ -576,5 +753,6 @@ module.exports = {
   deleteUser,
   listUsers,
   listRoles,
-  getMe
+  getMe,
+  updateMyProfile
 };

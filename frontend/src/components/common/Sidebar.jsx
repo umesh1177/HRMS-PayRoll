@@ -18,7 +18,8 @@ import {
   ClockIcon,
   CalendarIcon,
   BanknotesIcon,
-  UsersIcon
+  UsersIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 
@@ -86,6 +87,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
       path: '/users',
       icon: UsersIcon,
       show: hasPermission('user.manage')
+    },
+    {
+      name: 'Profile',
+      path: '/profile',
+      icon: UserCircleIcon,
+      show: true
     }
   ];
 

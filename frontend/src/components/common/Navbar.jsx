@@ -141,6 +141,15 @@ export default function Navbar({ onToggleSidebar }) {
                     <p className="text-sm font-bold text-blue-gray-800 truncate">{user.email}</p>
                   </div>
                   <MenuItem
+                    onClick={() => navigate('/profile')}
+                    className="flex items-center gap-2 text-blue-gray-800 hover:bg-indigo-50 hover:text-indigo-600"
+                  >
+                    <UserCircleIcon className="h-4 w-4" />
+                    <Typography variant="small" className="font-semibold">
+                      My Profile
+                    </Typography>
+                  </MenuItem>
+                  <MenuItem
                     onClick={handleLogout}
                     className="flex items-center gap-2 text-red-600 hover:bg-red-50"
                   >
