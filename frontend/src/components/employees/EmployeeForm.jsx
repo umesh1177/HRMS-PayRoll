@@ -3,8 +3,7 @@
  * 
  * RESPONSIBILITY:
  * Collects employee demographic, organizational, and scheduling inputs.
- * Dispatches creation (POST /employees) or update (PUT /employees/:id) requests
- * with real-time inline field validation.
+ * Integrates user account creation, multi-role RBAC assignment, and automated credentials email dispatch.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -14,7 +13,12 @@ import {
   Alert,
   Typography
 } from '@material-tailwind/react';
-import { InformationCircleIcon } from '@heroicons/react/24/solid';
+import {
+  InformationCircleIcon,
+  ShieldCheckIcon,
+  EnvelopeIcon,
+  KeyIcon
+} from '@heroicons/react/24/solid';
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
 import {
@@ -24,7 +28,7 @@ import {
 } from '../../utils/formValidators';
 
 /**
- * Employee Form Component.
+ * Employee Form Component with Role Assignment & Credentials Dispatch.
  * 
  * @param {object} props - Component props
  * @param {boolean} props.open - Modal open state
@@ -34,6 +38,7 @@ import {
  * @param {Array<object>} props.jobPositions - List of job positions
  * @param {Array<object>} props.schedules - List of working schedules
  * @param {Array<object>} props.managers - Potential managers list
+ * @param {Array<object>} [props.roles] - Available RBAC roles
  * @param {Function} props.onSuccess - Callback triggered after successful creation/update
  * @returns {JSX.Element} Employee CRUD Modal
  */
@@ -45,6 +50,7 @@ export default function EmployeeForm({
   jobPositions = [],
   schedules = [],
   managers = [],
+  roles = [],
   onSuccess
 }) {
   const isEdit = !!employee?.id;
@@ -62,6 +68,9 @@ export default function EmployeeForm({
     status: 'active',
     date_joined: new Date().toISOString().split('T')[0]
   });
+
+  const [password, setPassword] = useState('');
+  const [selectedRoleIds, setSelectedRoleIds] = useState([]);
 
   const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +91,13 @@ export default function EmployeeForm({
         status: employee.status || 'active',
         date_joined: employee.date_joined ? employee.date_joined.split('T')[0] : ''
       });
+      setPassword('');
+
+      // Preload roles if available
+      const existingRoleIds = employee.roles && Array.isArray(employee.roles)
+        ? employee.roles.map((r) => r.id)
+        : employee.role_id ? [employee.role_id] : [];
+      setSelectedRoleIds(existingRoleIds);
     } else {
       const randomCode = `EMP${Math.floor(100 + Math.random() * 900)}`;
       setFormData({
@@ -97,10 +113,15 @@ export default function EmployeeForm({
         status: 'active',
         date_joined: new Date().toISOString().split('T')[0]
       });
+      setPassword('');
+
+      // Default to Employee role
+      const defaultRole = roles.find((r) => r.name === 'Employee') || roles[0];
+      setSelectedRoleIds(defaultRole ? [defaultRole.id] : []);
     }
     setTouched({});
     setErrorMessage('');
-  }, [employee, open]);
+  }, [employee, open, roles]);
 
   // Field validation checks
   const errors = {
@@ -109,7 +130,8 @@ export default function EmployeeForm({
     last_name: validateRequired(formData.last_name, 'Last name', 2),
     email: validateEmail(formData.email),
     phone: validatePhone(formData.phone),
-    date_joined: validateRequired(formData.date_joined, 'Date joined')
+    date_joined: validateRequired(formData.date_joined, 'Date joined'),
+    roles: selectedRoleIds.length === 0 ? 'Please assign at least one role to this employee' : null
   };
 
   const hasErrors = Object.values(errors).some((err) => err !== null);
@@ -123,15 +145,26 @@ export default function EmployeeForm({
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
+  const handleRoleToggle = (roleId) => {
+    setSelectedRoleIds((prev) => {
+      if (prev.includes(roleId)) {
+        return prev.filter((id) => id !== roleId);
+      } else {
+        return [...prev, roleId];
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setTouched({
       employee_code: true,
       first_name: true,
       last_name: true,
       email: true,
       phone: true,
-      date_joined: true
+      date_joined: true,
+      roles: true
     });
 
     if (hasErrors) {
@@ -148,8 +181,14 @@ export default function EmployeeForm({
         department_id: formData.department_id ? Number(formData.department_id) : null,
         job_position_id: formData.job_position_id ? Number(formData.job_position_id) : null,
         manager_id: formData.manager_id ? Number(formData.manager_id) : null,
-        working_schedule_id: formData.working_schedule_id ? Number(formData.working_schedule_id) : null
+        working_schedule_id: formData.working_schedule_id ? Number(formData.working_schedule_id) : null,
+        role_ids: selectedRoleIds,
+        create_user: true
       };
+
+      if (password && password.trim()) {
+        payload.password = password.trim();
+      }
 
       if (isEdit) {
         await axiosClient.put(`/employees/${employee.id}`, payload);
@@ -160,7 +199,7 @@ export default function EmployeeForm({
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
-      const msg = err.response?.data?.error?.message || 'Failed to save employee. Please verify required fields.';
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to save employee. Please verify required fields.';
       setErrorMessage(msg);
     } finally {
       setSubmitting(false);
@@ -183,7 +222,7 @@ export default function EmployeeForm({
             Cancel
           </Button>
           <Button color="indigo" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? 'Saving...' : isEdit ? 'Update Employee' : 'Create Employee'}
+            {submitting ? 'Saving & Sending Email...' : isEdit ? 'Update Employee' : 'Create Employee & Send Credentials'}
           </Button>
         </>
       }
@@ -191,10 +230,11 @@ export default function EmployeeForm({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {errorMessage && (
           <Alert color="red" variant="gradient" icon={<InformationCircleIcon className="h-5 w-5" />}>
-            {errorMessage}
+            <span className="text-xs font-medium">{errorMessage}</span>
           </Alert>
         )}
 
+        {/* SECTION 1: Personal & Demographic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
@@ -269,7 +309,7 @@ export default function EmployeeForm({
 
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
-              Email Address *
+              Work Email Address (Username) *
             </Typography>
             <Input
               type="email"
@@ -397,6 +437,92 @@ export default function EmployeeForm({
             {touched.date_joined && errors.date_joined && (
               <p className="text-[11px] text-red-500 mt-1">{errors.date_joined}</p>
             )}
+          </div>
+        </div>
+
+        {/* SECTION 2: User Account Credentials & Role Assignment */}
+        <div className="mt-2 p-4 bg-indigo-50/40 rounded-xl border border-indigo-100/80">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheckIcon className="h-5 w-5 text-indigo-600" />
+            <Typography variant="small" color="blue-gray" className="font-bold text-xs uppercase tracking-wide text-indigo-900">
+              User Access Account & Role Assignments *
+            </Typography>
+          </div>
+
+          <p className="text-xs text-blue-gray-600 mb-3 leading-relaxed">
+            Assign the system access role(s) for this employee. Multiple roles can be assigned simultaneously.
+          </p>
+
+          {/* Role Checkboxes */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-blue-gray-800">
+                Assigned Roles * ({selectedRoleIds.length} Selected)
+              </span>
+            </div>
+
+            {touched.roles && errors.roles && (
+              <p className="text-[11px] text-red-500 font-semibold mb-2">{errors.roles}</p>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {roles.map((r) => {
+                const isChecked = selectedRoleIds.includes(r.id);
+                return (
+                  <label
+                    key={r.id}
+                    className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-all cursor-pointer ${
+                      isChecked
+                        ? 'bg-white border-indigo-300 shadow-xs'
+                        : 'bg-white/60 border-blue-gray-100 hover:bg-white'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleRoleToggle(r.id)}
+                      className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                    />
+                    <div className="flex-1">
+                      <span className={`text-xs font-bold ${isChecked ? 'text-indigo-950' : 'text-blue-gray-800'}`}>
+                        {r.name}
+                      </span>
+                      {r.description && (
+                        <p className="text-[10px] text-blue-gray-500 font-normal leading-tight mt-0.5">
+                          {r.description}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Password field */}
+          <div className="mb-3">
+            <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
+              {isEdit ? 'Update Login Password (leave blank to keep existing)' : 'Initial Password'}
+            </Typography>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={isEdit ? '••••••••' : `Default: ${formData.first_name ? `${formData.first_name}@123` : 'Employee@123'}`}
+              icon={<KeyIcon className="h-4 w-4 text-blue-gray-400" />}
+            />
+            <p className="text-[11px] text-blue-gray-500 mt-1">
+              {!isEdit && 'If left blank, system automatically sets default password as '}
+              <strong className="text-indigo-700">{formData.first_name ? `${formData.first_name}@123` : '<FirstName>@123'}</strong>
+            </p>
+          </div>
+
+          {/* Email Notification Notice Banner */}
+          <div className="flex items-start gap-2.5 p-2.5 bg-indigo-100/70 border border-indigo-200 rounded-lg text-indigo-900 text-xs">
+            <EnvelopeIcon className="h-4 w-4 text-indigo-700 shrink-0 mt-0.5" />
+            <span className="leading-tight">
+              <strong>Automated Credential Dispatch:</strong> When this employee profile is created, a welcome email with their login email and password will be sent automatically to <span className="font-mono font-bold text-indigo-800">{formData.email || 'the provided email'}</span>.
+            </span>
           </div>
         </div>
       </form>

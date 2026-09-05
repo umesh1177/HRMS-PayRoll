@@ -43,6 +43,7 @@ export default function EmployeesPage() {
   const [departments, setDepartments] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // View Mode: 'kanban' or 'list'
@@ -70,14 +71,15 @@ export default function EmployeesPage() {
   }, [page, search]);
 
   /**
-   * Fetches auxiliary dropdown entities (departments, positions, schedules).
+   * Fetches auxiliary dropdown entities (departments, positions, schedules, roles).
    */
   const fetchAuxiliaryData = async () => {
     try {
-      const [deptRes, posRes, schRes] = await Promise.allSettled([
+      const [deptRes, posRes, schRes, rolesRes] = await Promise.allSettled([
         axiosClient.get('/departments'),
         axiosClient.get('/departments/positions/all'),
-        axiosClient.get('/schedules')
+        axiosClient.get('/schedules'),
+        axiosClient.get('/auth/roles')
       ]);
 
       if (deptRes.status === 'fulfilled' && deptRes.value.data?.data) {
@@ -100,6 +102,10 @@ export default function EmployeesPage() {
         setSchedules(schRes.value.data.data);
       } else {
         setSchedules(mockSchedules);
+      }
+
+      if (rolesRes.status === 'fulfilled' && rolesRes.value.data?.data) {
+        setRoles(rolesRes.value.data.data);
       }
     } catch (err) {
       console.warn('Failed to load auxiliary data, utilizing mock fallbacks.');
@@ -274,6 +280,7 @@ export default function EmployeesPage() {
         jobPositions={jobPositions}
         schedules={schedules}
         managers={employees}
+        roles={roles}
         onSuccess={fetchEmployees}
       />
 

@@ -224,19 +224,9 @@ export default function UserManagementPage() {
         columns={columns}
         data={users}
         loading={loading}
-        actionButton={
-          <Button
-            color="indigo"
-            size="sm"
-            className="flex items-center gap-2 shadow-indigo-500/20"
-            onClick={handleOpenCreate}
-          >
-            <UserPlusIcon className="h-4 w-4" /> Create User
-          </Button>
-        }
       />
 
-      {/* User Create / Edit Modal */}
+      {/* User Edit Roles Modal */}
       <UserForm
         open={formOpen}
         onClose={() => setFormOpen(false)}
