@@ -209,6 +209,7 @@ export default function TimeOffPage() {
         open={requestFormOpen}
         onClose={() => setRequestFormOpen(false)}
         types={types}
+        employees={employees}
         onSuccess={fetchRequests}
       />
     </div>
