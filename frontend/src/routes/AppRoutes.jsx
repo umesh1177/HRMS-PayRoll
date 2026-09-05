@@ -28,6 +28,7 @@ import AttendancePage from '../pages/AttendancePage';
 import TimeOffPage from '../pages/TimeOffPage';
 import PayrollPage from '../pages/PayrollPage';
 import UserManagementPage from '../pages/UserManagementPage';
+import OrganizationPage from '../pages/OrganizationPage';
 
 /**
  * Layout shell that wraps authenticated dashboard routes.
@@ -121,9 +122,19 @@ export default function AppRoutes() {
         }
       />
       <Route
+        path="/organization"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <OrganizationPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/contracts"
         element={
-          <ProtectedRoute requiredPermission="contract.manage">
+          <ProtectedRoute>
             <DashboardLayout>
               <ContractsPage />
             </DashboardLayout>

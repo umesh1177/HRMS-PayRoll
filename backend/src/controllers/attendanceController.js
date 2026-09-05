@@ -434,6 +434,26 @@ async function manualEdit(req, res, next) {
   }
 }
 
+/**
+ * Deletes an attendance record.
+ */
+async function deleteAttendance(req, res, next) {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM attendances WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
+      const error = new Error(`Attendance record with ID ${id} not found`);
+      error.status = 404;
+      error.code = 'NOT_FOUND';
+      return next(error);
+    }
+
+    res.status(200).json({ message: 'Attendance record deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   checkIn,
   checkOut,
@@ -441,5 +461,6 @@ module.exports = {
   listAttendance,
   getSummary,
   markAttendance,
-  manualEdit
+  manualEdit,
+  deleteAttendance
 };

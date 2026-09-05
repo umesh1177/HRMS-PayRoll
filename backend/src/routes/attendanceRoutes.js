@@ -30,4 +30,7 @@ router.get('/', attendanceController.listAttendance);
 // HR manual correction endpoint (strictly restricted to attendance.manage_all)
 router.put('/:id', requirePermission('attendance.manage_all'), attendanceController.manualEdit);
 
+// Delete attendance record (strictly restricted to attendance.manage_all)
+router.delete('/:id', requirePermission('attendance.manage_all'), attendanceController.deleteAttendance);
+
 module.exports = router;

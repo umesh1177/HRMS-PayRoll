@@ -23,6 +23,7 @@ import EmployeeList from '../components/employees/EmployeeList';
 import EmployeeKanban from '../components/employees/EmployeeKanban';
 import EmployeeForm from '../components/employees/EmployeeForm';
 import EmployeeDetail from '../components/employees/EmployeeDetail';
+import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
 import mockEmployees from '../api/mocks/employees.json';
@@ -56,6 +57,9 @@ export default function EmployeesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     fetchAuxiliaryData();
@@ -144,6 +148,30 @@ export default function EmployeesPage() {
     setDetailOpen(true);
   };
 
+  const handleOpenDelete = (emp) => {
+    setSelectedEmployee(emp);
+    setDeleteError(null);
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedEmployee) return;
+    try {
+      setDeleteLoading(true);
+      setDeleteError(null);
+      await axiosClient.delete(`/employees/${selectedEmployee.id}`);
+      setDeleteOpen(false);
+      setSelectedEmployee(null);
+      fetchEmployees();
+    } catch (err) {
+      console.error('Failed to delete employee:', err);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete employee. Please try again.';
+      setDeleteError(msg);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const createButton = canManage && (
     <Button
       color="indigo"
@@ -218,6 +246,7 @@ export default function EmployeesPage() {
           onSearchChange={setSearch}
           onView={handleOpenDetail}
           onEdit={handleOpenEdit}
+          onDelete={canManage ? handleOpenDelete : null}
           actionButton={null}
         />
       ) : (
@@ -231,6 +260,7 @@ export default function EmployeesPage() {
           onSearchChange={setSearch}
           onView={handleOpenDetail}
           onEdit={handleOpenEdit}
+          onDelete={canManage ? handleOpenDelete : null}
           actionButton={null}
         />
       )}
@@ -252,6 +282,20 @@ export default function EmployeesPage() {
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         employee={selectedEmployee}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Employee"
+        itemName={selectedEmployee ? `${selectedEmployee.first_name} ${selectedEmployee.last_name} (${selectedEmployee.employee_code})` : 'this employee'}
+        loading={deleteLoading}
+        errorMessage={deleteError}
       />
     </div>
   );

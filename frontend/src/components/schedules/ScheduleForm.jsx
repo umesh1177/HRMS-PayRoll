@@ -256,8 +256,8 @@ export default function ScheduleForm({
           </Alert>
         )}
 
-        {/* Schedule Name and Type */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        {/* Schedule Name, Type, Status and Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
               Schedule Name *
@@ -293,9 +293,23 @@ export default function ScheduleForm({
             </select>
           </div>
 
+          <div>
+            <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
+              Status *
+            </Typography>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
+            >
+              <option value="active">Active</option>
+              <option value="archived">Archived / Inactive</option>
+            </select>
+          </div>
+
           <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-between">
             <div>
-              <span className="text-xs text-indigo-700 font-medium">Computed Weekly Hours</span>
+              <span className="text-xs text-indigo-700 font-medium">Weekly Hours</span>
               <p className="text-lg font-black text-indigo-900">{totalWeeklyHours} hrs</p>
             </div>
             <ClockIcon className="h-7 w-7 text-indigo-400" />

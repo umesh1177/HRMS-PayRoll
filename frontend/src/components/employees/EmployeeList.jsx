@@ -11,7 +11,7 @@
 
 import React from 'react';
 import { Typography, Chip, Button, IconButton, Tooltip } from '@material-tailwind/react';
-import { EyeIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
 
@@ -28,6 +28,7 @@ import { useAuth } from '../../context/AuthContext';
  * @param {Function} props.onSearchChange - Search input change handler
  * @param {Function} props.onView - Callback when clicking View Detail (emp: object) => void
  * @param {Function} props.onEdit - Callback when clicking Edit (emp: object) => void
+ * @param {Function} [props.onDelete] - Callback when clicking Delete (emp: object) => void
  * @param {React.ReactNode} [props.actionButton] - Create button element
  * @returns {JSX.Element} Paginated employee table
  */
@@ -41,6 +42,7 @@ export default function EmployeeList({
   onSearchChange,
   onView,
   onEdit,
+  onDelete,
   actionButton
 }) {
   const { hasPermission } = useAuth();
@@ -110,7 +112,7 @@ export default function EmployeeList({
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Tooltip content="View Profile">
             <IconButton
               variant="text"
@@ -123,16 +125,31 @@ export default function EmployeeList({
           </Tooltip>
 
           {canManage && (
-            <Tooltip content="Edit Employee">
-              <IconButton
-                variant="text"
-                color="blue-gray"
-                size="sm"
-                onClick={() => onEdit(row)}
-              >
-                <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
-              </IconButton>
-            </Tooltip>
+            <>
+              <Tooltip content="Edit Employee">
+                <IconButton
+                  variant="text"
+                  color="blue-gray"
+                  size="sm"
+                  onClick={() => onEdit(row)}
+                >
+                  <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
+                </IconButton>
+              </Tooltip>
+
+              {onDelete && (
+                <Tooltip content="Delete Employee">
+                  <IconButton
+                    variant="text"
+                    color="red"
+                    size="sm"
+                    onClick={() => onDelete(row)}
+                  >
+                    <TrashIcon className="h-4 w-4 text-red-500" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
           )}
         </div>
       )

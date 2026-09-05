@@ -14,6 +14,7 @@ import { Button } from '@material-tailwind/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import ContractList from '../components/contracts/ContractList';
 import ContractForm from '../components/contracts/ContractForm';
+import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
 import mockContracts from '../api/mocks/contracts.json';
@@ -39,7 +40,10 @@ export default function ContractsPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     fetchAuxiliaryData();
@@ -111,6 +115,30 @@ export default function ContractsPage() {
     setFormOpen(true);
   };
 
+  const handleOpenDelete = (contract) => {
+    setSelectedContract(contract);
+    setDeleteError(null);
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedContract) return;
+    try {
+      setDeleteLoading(true);
+      setDeleteError(null);
+      await axiosClient.delete(`/contracts/${selectedContract.id}`);
+      setDeleteOpen(false);
+      setSelectedContract(null);
+      fetchContracts();
+    } catch (err) {
+      console.error('Failed to delete contract:', err);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete contract. Please try again.';
+      setDeleteError(msg);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="mt-6">
       <ContractList
@@ -120,6 +148,7 @@ export default function ContractsPage() {
         totalPages={totalPages}
         onPageChange={setPage}
         onEdit={handleEdit}
+        onDelete={canManage ? handleOpenDelete : null}
         actionButton={
           canManage && (
             <Button
@@ -128,7 +157,7 @@ export default function ContractsPage() {
               className="flex items-center gap-2"
               onClick={handleCreate}
             >
-              <PlusIcon className="h-4 w-4" /> New Contract
+              <PlusIcon className="h-4 w-4" /> Create Contract
             </Button>
           )
         }
@@ -142,6 +171,20 @@ export default function ContractsPage() {
         schedules={schedules}
         salaryStructures={salaryStructures}
         onSuccess={fetchContracts}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Contract"
+        itemName={selectedContract ? `contract for ${selectedContract.employee_name || 'Employee'}` : 'this contract'}
+        loading={deleteLoading}
+        errorMessage={deleteError}
       />
     </div>
   );

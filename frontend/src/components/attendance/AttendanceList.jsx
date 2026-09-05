@@ -11,7 +11,7 @@
 
 import React from 'react';
 import { Typography, Chip, IconButton, Tooltip } from '@material-tailwind/react';
-import { PencilSquareIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
 
@@ -25,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
  * @param {number} props.totalPages - Total pages
  * @param {Function} props.onPageChange - Page change callback
  * @param {Function} props.onEdit - Manual edit callback (record: object) => void
+ * @param {Function} [props.onDelete] - Manual delete callback (record: object) => void
  * @param {React.ReactNode} [props.actionButton] - Header action
  * @returns {JSX.Element} Paginated attendance data table
  */
@@ -35,6 +36,7 @@ export default function AttendanceList({
   totalPages = 1,
   onPageChange,
   onEdit,
+  onDelete,
   actionButton
 }) {
   const { hasPermission } = useAuth();
@@ -133,16 +135,30 @@ export default function AttendanceList({
       label: 'Actions',
       render: (row) => (
         canManageAll && (
-          <Tooltip content="Correct Record">
-            <IconButton
-              variant="text"
-              color="blue-gray"
-              size="sm"
-              onClick={() => onEdit(row)}
-            >
-              <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
-            </IconButton>
-          </Tooltip>
+          <div className="flex items-center gap-1">
+            <Tooltip content="Correct Record">
+              <IconButton
+                variant="text"
+                color="blue-gray"
+                size="sm"
+                onClick={() => onEdit(row)}
+              >
+                <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
+              </IconButton>
+            </Tooltip>
+            {onDelete && (
+              <Tooltip content="Delete Attendance">
+                <IconButton
+                  variant="text"
+                  color="red"
+                  size="sm"
+                  onClick={() => onDelete(row)}
+                >
+                  <TrashIcon className="h-4 w-4 text-red-500" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </div>
         )
       )
     }

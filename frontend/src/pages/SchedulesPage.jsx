@@ -14,6 +14,7 @@ import { Button } from '@material-tailwind/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import ScheduleList from '../components/schedules/ScheduleList';
 import ScheduleForm from '../components/schedules/ScheduleForm';
+import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
 import mockSchedules from '../api/mocks/schedules.json';
@@ -32,6 +33,12 @@ export default function SchedulesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
+
+  // Delete modal state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [scheduleToDelete, setScheduleToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     fetchSchedules();
@@ -74,12 +81,36 @@ export default function SchedulesPage() {
     setFormOpen(true);
   };
 
+  const handleOpenDelete = (sch) => {
+    setScheduleToDelete(sch);
+    setDeleteError(null);
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!scheduleToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await axiosClient.delete(`/schedules/${scheduleToDelete.id}`);
+      setDeleteOpen(false);
+      setScheduleToDelete(null);
+      fetchSchedules();
+    } catch (err) {
+      console.error('Failed to delete schedule:', err);
+      setDeleteError(err.response?.data?.message || 'Failed to delete schedule. It may be currently assigned to active employees or contracts.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="mt-6">
       <ScheduleList
         schedules={schedules}
         loading={loading}
         onEdit={handleEdit}
+        onDelete={canManage ? handleOpenDelete : undefined}
         actionButton={
           canManage && (
             <Button
@@ -99,6 +130,20 @@ export default function SchedulesPage() {
         onClose={() => setFormOpen(false)}
         schedule={selectedSchedule}
         onSuccess={fetchSchedules}
+      />
+
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setScheduleToDelete(null);
+          setDeleteError(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        loading={deleteLoading}
+        title="Delete Working Schedule"
+        description={`Are you sure you want to delete working schedule "${scheduleToDelete?.name || ''}"? Shift definitions associated with this template will also be deleted.`}
+        errorMessage={deleteError}
       />
     </div>
   );
