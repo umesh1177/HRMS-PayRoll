@@ -353,14 +353,15 @@ async function updateEmployee(req, res, next) {
 }
 
 /**
- * Deactivates or removes an employee.
+ * Completely removes an employee and all associated records from the database.
  */
 async function deleteEmployee(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
     
     // Check if employee exists
-    const [existing] = await pool.query('SELECT id, first_name, last_name FROM employees WHERE id = ?', [id]);
+    const [existing] = await connection.query('SELECT id, first_name, last_name FROM employees WHERE id = ?', [id]);
     if (existing.length === 0) {
       const error = new Error(`Employee with ID ${id} not found`);
       error.status = 404;
@@ -368,20 +369,51 @@ async function deleteEmployee(req, res, next) {
       return next(error);
     }
 
-    try {
-      // Attempt hard delete first (unlinks or deletes non-blocking relations)
-      await pool.query('DELETE FROM employees WHERE id = ?', [id]);
-      return res.status(200).json({ message: 'Employee deleted successfully' });
-    } catch (delErr) {
-      if (delErr.code === 'ER_ROW_IS_REFERENCED_2') {
-        // Fallback to soft termination to preserve historical payslips/payroll FK constraints
-        await pool.query('UPDATE employees SET status = "terminated", date_left = CURDATE() WHERE id = ?', [id]);
-        return res.status(200).json({ message: 'Employee has historical payroll records; status marked as Terminated' });
-      }
-      throw delErr;
-    }
+    await connection.beginTransaction();
+
+    // 1. Unlink manager references from other employees and departments
+    await connection.query('UPDATE employees SET manager_id = NULL WHERE manager_id = ?', [id]);
+    await connection.query('UPDATE departments SET manager_id = NULL WHERE manager_id = ?', [id]);
+
+    // 2. Delete payslip lines for the employee's payslips
+    await connection.query(
+      `DELETE pl FROM payslip_lines pl 
+       JOIN payslips p ON pl.payslip_id = p.id 
+       WHERE p.employee_id = ?`,
+      [id]
+    );
+
+    // 3. Delete payslips
+    await connection.query('DELETE FROM payslips WHERE employee_id = ?', [id]);
+
+    // 4. Delete payrun_employees
+    await connection.query('DELETE FROM payrun_employees WHERE employee_id = ?', [id]);
+
+    // 5. Delete contracts
+    await connection.query('DELETE FROM contracts WHERE employee_id = ?', [id]);
+
+    // 6. Delete time off requests
+    await connection.query('DELETE FROM time_off_requests WHERE employee_id = ?', [id]);
+
+    // 7. Delete time off allocations
+    await connection.query('DELETE FROM time_off_allocations WHERE employee_id = ?', [id]);
+
+    // 8. Delete attendances
+    await connection.query('DELETE FROM attendances WHERE employee_id = ?', [id]);
+
+    // 9. Delete user account linked to this employee
+    await connection.query('DELETE FROM users WHERE employee_id = ?', [id]);
+
+    // 10. Delete the employee record itself
+    await connection.query('DELETE FROM employees WHERE id = ?', [id]);
+
+    await connection.commit();
+    res.status(200).json({ message: 'Employee and all associated records permanently deleted from database' });
   } catch (err) {
+    await connection.rollback();
     next(err);
+  } finally {
+    connection.release();
   }
 }
 

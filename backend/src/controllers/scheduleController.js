@@ -213,21 +213,40 @@ async function updateSchedule(req, res, next) {
 }
 
 /**
- * Deletes or archives a working schedule.
+ * Completely removes a working schedule and unlinks referenced records in the database.
  */
 async function deleteSchedule(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM working_schedules WHERE id = ?', [id]);
-    res.status(200).json({ message: 'Schedule deleted successfully' });
-  } catch (err) {
-    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-      const error = new Error('Cannot delete schedule assigned to employees or contracts');
-      error.status = 400;
-      error.code = 'CONSTRAINT_VIOLATION';
+
+    const [existing] = await connection.query('SELECT id FROM working_schedules WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      const error = new Error(`Schedule with ID ${id} not found`);
+      error.status = 404;
+      error.code = 'NOT_FOUND';
       return next(error);
     }
+
+    await connection.beginTransaction();
+
+    // 1. Unlink schedule from employees and contracts
+    await connection.query('UPDATE employees SET working_schedule_id = NULL WHERE working_schedule_id = ?', [id]);
+    await connection.query('UPDATE contracts SET working_schedule_id = NULL WHERE working_schedule_id = ?', [id]);
+
+    // 2. Delete schedule lines
+    await connection.query('DELETE FROM schedule_lines WHERE schedule_id = ?', [id]);
+
+    // 3. Delete the working schedule
+    await connection.query('DELETE FROM working_schedules WHERE id = ?', [id]);
+
+    await connection.commit();
+    res.status(200).json({ message: 'Working schedule permanently deleted from database' });
+  } catch (err) {
+    await connection.rollback();
     next(err);
+  } finally {
+    connection.release();
   }
 }
 

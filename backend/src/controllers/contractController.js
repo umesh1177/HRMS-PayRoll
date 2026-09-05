@@ -329,14 +329,15 @@ async function updateContract(req, res, next) {
 }
 
 /**
- * Cancels or deletes a contract.
+ * Completely removes a contract and associated payslip references from the database.
  */
 async function deleteContract(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
     
     // Check if contract exists
-    const [existing] = await pool.query('SELECT id FROM contracts WHERE id = ?', [id]);
+    const [existing] = await connection.query('SELECT id FROM contracts WHERE id = ?', [id]);
     if (existing.length === 0) {
       const error = new Error(`Contract with ID ${id} not found`);
       error.status = 404;
@@ -344,20 +345,32 @@ async function deleteContract(req, res, next) {
       return next(error);
     }
 
-    try {
-      // Attempt hard delete first
-      await pool.query('DELETE FROM contracts WHERE id = ?', [id]);
-      return res.status(200).json({ message: 'Contract deleted successfully' });
-    } catch (delErr) {
-      if (delErr.code === 'ER_ROW_IS_REFERENCED_2') {
-        // Fallback to setting status to cancelled per historical payroll retention
-        await pool.query('UPDATE contracts SET status = "cancelled" WHERE id = ?', [id]);
-        return res.status(200).json({ message: 'Contract is linked to payslips; status marked as Cancelled' });
-      }
-      throw delErr;
-    }
+    await connection.beginTransaction();
+
+    // 1. Delete payslip lines linked to payslips of this contract
+    await connection.query(
+      `DELETE pl FROM payslip_lines pl 
+       JOIN payslips p ON pl.payslip_id = p.id 
+       WHERE p.contract_id = ?`,
+      [id]
+    );
+
+    // 2. Delete payslips for this contract
+    await connection.query('DELETE FROM payslips WHERE contract_id = ?', [id]);
+
+    // 3. Delete payrun_employees entries for this contract
+    await connection.query('DELETE FROM payrun_employees WHERE contract_id = ?', [id]);
+
+    // 4. Delete the contract record
+    await connection.query('DELETE FROM contracts WHERE id = ?', [id]);
+
+    await connection.commit();
+    res.status(200).json({ message: 'Contract and associated records permanently deleted from database' });
   } catch (err) {
+    await connection.rollback();
     next(err);
+  } finally {
+    connection.release();
   }
 }
 

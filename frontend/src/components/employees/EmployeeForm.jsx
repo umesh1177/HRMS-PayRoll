@@ -225,7 +225,7 @@ export default function EmployeeForm({
               className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
             >
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="inactive">Deactivated / Inactive</option>
               <option value="terminated">Terminated</option>
               <option value="suspended">Suspended</option>
             </select>
