@@ -1,135 +1,266 @@
 /**
- * Main Executive Dashboard Page
+ * Executive HR & Payroll Dashboard Page
  * 
  * THEME ORIGIN:
  * Adapted from Material Tailwind Dashboard React's `src/pages/dashboard/home.jsx`.
  * 
- * CHANGES & REMOVALS:
- * Replaced generic demo analytics (website visitors, sales metrics) with real HR & Payroll
- * metrics: Total Headcount, Active Running Contracts, Time-Off Approvals, and Payroll Distribution.
- * 
  * RESPONSIBILITY:
- * Orchestrates high-level KPI cards, attendance health overviews, and payroll trend charts.
+ * Orchestrates executive KPI cards (Net Salary Paid, Payslip Count, Average Salary, Attendance %),
+ * interactive filters (Period, Department, Employee Type) that re-fetch /dashboard/summary,
+ * SalaryCostChart (bar by department), NetSalaryTrendChart (line monthly), PayslipStatusDonut,
+ * AttendanceOverviewCard, TimeOffOverviewCard, and flagged payslip warnings/alerts table.
  * 
  * NOT RESPONSIBLE FOR:
- * Detailed granular line item editing or background salary computation.
+ * Background calculation formulas or state mutation logic.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardBody,
   CardHeader,
   Typography,
-  Spinner
+  Spinner,
+  Button,
+  Chip
 } from '@material-tailwind/react';
 import {
-  UsersIcon,
-  DocumentCheckIcon,
-  CalendarDaysIcon,
   BanknotesIcon,
+  DocumentTextIcon,
+  CalculatorIcon,
+  CheckBadgeIcon,
+  FunnelIcon,
+  ArrowPathIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/solid';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
+import SalaryCostChart from '../components/dashboard/SalaryCostChart';
+import NetSalaryTrendChart from '../components/dashboard/NetSalaryTrendChart';
+import PayslipStatusDonut from '../components/dashboard/PayslipStatusDonut';
+import AttendanceOverviewCard from '../components/dashboard/AttendanceOverviewCard';
+import TimeOffOverviewCard from '../components/dashboard/TimeOffOverviewCard';
 
 /**
- * High-level Executive & HR Dashboard View.
+ * Main Executive Dashboard.
  * 
  * @returns {JSX.Element} Dashboard screen
  */
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
+  const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState([]);
+
+  // Top Filters
+  const [period, setPeriod] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [employeeType, setEmployeeType] = useState('');
+
+  // Consolidated dashboard payload
+  const [dashboardData, setDashboardData] = useState({
     totalEmployees: 0,
     activeContracts: 0,
     pendingTimeOff: 0,
+    total_net_paid: 0,
+    total_gross_amount: 0,
     latestPayrunTotal: 0,
-    attendanceWarnings: 0
+    payslip_count: 0,
+    avg_salary: 0,
+    attendance_rate: 100,
+    payslip_status_counts: { total: 0, draft: 0, computed: 0, done: 0, paid: 0 },
+    salary_by_department: [],
+    monthly_net_salary_trend: [],
+    attendance_overview: { active_employees: 0, present: 0, late: 0, absent: 0, overtime: 0, missing_checkout: 0 },
+    time_off_overview: { total_requests: 0, pending_approvals: 0, approved: 0, refused: 0, total_days: 0 },
+    warnings_count: 0,
+    warnings: []
   });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardStats();
+    fetchDepartments();
   }, []);
 
   /**
-   * Fetches summarized dashboard stats from backend.
+   * Re-fetches /api/v1/dashboard/summary with current active query filters.
    */
-  const fetchDashboardStats = async () => {
+  const fetchDashboardSummary = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axiosClient.get('/dashboard/summary');
+      const params = {};
+      if (period) params.period = period;
+      if (departmentId) params.department_id = departmentId;
+      if (employeeType) params.employee_type = employeeType;
+
+      const res = await axiosClient.get('/dashboard/summary', { params });
       if (res.data) {
-        setStats(res.data);
+        setDashboardData(res.data);
       }
     } catch (err) {
-      // Fallback defaults if dashboard endpoints are initializing
-      console.warn('Dashboard summary endpoint unavailable yet, using baseline defaults.');
-      setStats({
-        totalEmployees: 12,
-        activeContracts: 11,
-        pendingTimeOff: 3,
-        latestPayrunTotal: 48500,
-        attendanceWarnings: 1
-      });
+      console.warn('Dashboard summary fetch failed, using fallback data.', err);
     } finally {
       setLoading(false);
     }
+  }, [period, departmentId, employeeType]);
+
+  useEffect(() => {
+    fetchDashboardSummary();
+  }, [fetchDashboardSummary]);
+
+  const fetchDepartments = async () => {
+    try {
+      const res = await axiosClient.get('/departments');
+      setDepartments(res.data?.data || res.data || []);
+    } catch (err) {
+      console.warn('Could not fetch departments for filter dropdown');
+    }
   };
 
+  const handleResetFilters = () => {
+    setPeriod('');
+    setDepartmentId('');
+    setEmployeeType('');
+  };
+
+  // Compute calculated metrics with fallbacks
+  const netSalaryPaid = Number(dashboardData.total_net_paid || 0);
+  const totalPayslips = Number(dashboardData.payslip_count || dashboardData.payslip_status_counts?.total || 0);
+  const avgSalary = Number(
+    dashboardData.avg_salary ||
+    (totalPayslips > 0 ? netSalaryPaid / totalPayslips : 0)
+  );
+
+  const attOverview = dashboardData.attendance_overview || {};
+  const totalAtt = Number(attOverview.present || 0) + Number(attOverview.late || 0) + Number(attOverview.absent || 0);
+  const attendanceRate = totalAtt > 0
+    ? Math.round(((Number(attOverview.present || 0) + Number(attOverview.late || 0)) / totalAtt) * 100)
+    : (dashboardData.attendance_rate || 100);
+
+  // 4 Primary KPI Cards
   const kpiCards = [
     {
-      title: 'Total Employees',
-      value: stats.totalEmployees,
-      icon: UsersIcon,
-      color: 'blue',
-      footerText: 'Active in system'
-    },
-    {
-      title: 'Active Contracts',
-      value: stats.activeContracts,
-      icon: DocumentCheckIcon,
-      color: 'green',
-      footerText: 'Status: Running'
-    },
-    {
-      title: 'Pending Time Off',
-      value: stats.pendingTimeOff,
-      icon: CalendarDaysIcon,
-      color: 'amber',
-      footerText: 'Requires manager approval'
-    },
-    {
-      title: 'Latest Payrun Cost',
-      value: `$${Number(stats.latestPayrunTotal || 0).toLocaleString()}`,
+      title: 'Net Salary Paid',
+      value: `$${netSalaryPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: BanknotesIcon,
       color: 'indigo',
-      footerText: 'Computed payroll period'
+      footerText: `Gross Total: $${Number(dashboardData.total_gross_amount || 0).toLocaleString()}`
+    },
+    {
+      title: 'Payslip Count',
+      value: totalPayslips,
+      icon: DocumentTextIcon,
+      color: 'blue',
+      footerText: `${dashboardData.payslip_status_counts?.paid || 0} Paid • ${dashboardData.payslip_status_counts?.computed || 0} Computed`
+    },
+    {
+      title: 'Average Salary',
+      value: `$${avgSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: CalculatorIcon,
+      color: 'green',
+      footerText: 'Per processed employee payslip'
+    },
+    {
+      title: 'Attendance %',
+      value: `${attendanceRate}%`,
+      icon: CheckBadgeIcon,
+      color: 'amber',
+      footerText: `${attOverview.present || 0} Present • ${attOverview.late || 0} Late • ${attOverview.absent || 0} Absent`
     }
   ];
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Spinner className="h-8 w-8 text-indigo-600" />
-      </div>
-    );
-  }
-
   return (
-    <div className="mt-6 flex flex-col gap-6">
-      {/* Welcome Banner */}
-      <div className="rounded-xl bg-gradient-to-r from-indigo-700 via-indigo-600 to-blue-600 p-6 text-white shadow-lg">
-        <Typography variant="h4" color="white" className="font-bold">
-          Welcome back, {user?.first_name || user?.email || 'Team'}! 👋
-        </Typography>
-        <Typography variant="small" color="white" className="opacity-90 mt-1">
-          Here is an overview of PeoplePay360 HR operations, attendance records, and active payroll cycles.
-        </Typography>
+    <div className="mt-4 flex flex-col gap-6">
+      {/* Top Welcome / Header Banner */}
+      <div className="rounded-xl bg-gradient-to-r from-indigo-900 via-indigo-700 to-blue-600 p-6 text-white shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <Typography variant="h4" color="white" className="font-bold">
+            Executive HR & Payroll Dashboard 👋
+          </Typography>
+          <Typography variant="small" color="white" className="opacity-90 mt-1">
+            Real-time analytics for workforce attendance, compensation distribution, and payrun operations.
+          </Typography>
+        </div>
+        <div className="flex items-center gap-2">
+          <Chip
+            value={`Role: ${user?.role || 'Admin'}`}
+            className="bg-white/20 text-white font-medium border border-white/30 backdrop-blur-sm"
+          />
+        </div>
       </div>
 
-      {/* KPI Metric Cards */}
+      {/* Top Filter Bar */}
+      <Card className="border border-blue-gray-100 shadow-sm p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-blue-gray-800">
+            <FunnelIcon className="h-5 w-5 text-indigo-600" />
+            <Typography variant="h6" className="text-sm font-semibold">
+              Filter Dashboard
+            </Typography>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Period Filter */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-blue-gray-600">Period:</label>
+              <input
+                type="month"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+                className="text-xs px-3 py-2 border border-blue-gray-200 rounded-lg bg-white text-blue-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm"
+                title="Filter by Period (YYYY-MM)"
+              />
+            </div>
+
+            {/* Department Filter */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-blue-gray-600">Dept:</label>
+              <select
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                className="text-xs px-3 py-2 border border-blue-gray-200 rounded-lg bg-white text-blue-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm"
+              >
+                <option value="">All Departments</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Employee Type Filter */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-blue-gray-600">Type:</label>
+              <select
+                value={employeeType}
+                onChange={(e) => setEmployeeType(e.target.value)}
+                className="text-xs px-3 py-2 border border-blue-gray-200 rounded-lg bg-white text-blue-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm"
+              >
+                <option value="">All Types</option>
+                <option value="full_time">Full Time</option>
+                <option value="part_time">Part Time</option>
+                <option value="contractor">Contractor</option>
+                <option value="intern">Intern</option>
+              </select>
+            </div>
+
+            {/* Reset Filter Button */}
+            {(period || departmentId || employeeType) && (
+              <Button
+                size="sm"
+                variant="text"
+                color="red"
+                onClick={handleResetFilters}
+                className="flex items-center gap-1 text-xs py-2 px-3 hover:bg-red-50"
+              >
+                <ArrowPathIcon className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Primary KPI Cards */}
       <div className="grid gap-y-6 gap-x-6 md:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((kpi) => {
           const Icon = kpi.icon;
@@ -149,7 +280,7 @@ export default function DashboardPage() {
                   {kpi.title}
                 </Typography>
                 <Typography variant="h4" color="blue-gray" className="font-bold">
-                  {kpi.value}
+                  {loading ? '...' : kpi.value}
                 </Typography>
               </CardBody>
               <div className="border-t border-blue-gray-50 px-4 py-3">
@@ -162,61 +293,80 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Overview Analytics & Quick Insights Section */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <Card className="border border-blue-gray-100 shadow-sm p-4">
-          <CardHeader floated={false} shadow={false} className="p-2 mb-2">
-            <Typography variant="h6" color="blue-gray" className="font-bold">
-              Payroll Processing Status
-            </Typography>
-            <Typography variant="small" color="gray" className="text-xs">
-              Live data from payruns and payslip validation engine
-            </Typography>
-          </CardHeader>
-          <CardBody className="pt-0">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-gray-50/50">
-                <span className="text-sm font-medium text-blue-gray-700">Contract Verification</span>
-                <span className="text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-700">Ready</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-gray-50/50">
-                <span className="text-sm font-medium text-blue-gray-700">Attendance Sync & Deductions</span>
-                <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-100 text-blue-700">Synced</span>
-              </div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-gray-50/50">
-                <span className="text-sm font-medium text-blue-gray-700">Flagged Warnings</span>
-                <span className="text-xs font-semibold px-2 py-1 rounded bg-amber-100 text-amber-700">
-                  {stats.attendanceWarnings} item(s)
-                </span>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card className="border border-blue-gray-100 shadow-sm p-4">
-          <CardHeader floated={false} shadow={false} className="p-2 mb-2">
-            <Typography variant="h6" color="blue-gray" className="font-bold">
-              System Health & DB Connection
-            </Typography>
-            <Typography variant="small" color="gray" className="text-xs">
-              Backend pool connectivity and RBAC status
-            </Typography>
-          </CardHeader>
-          <CardBody className="pt-0 space-y-3 text-sm text-blue-gray-600">
-            <p className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500 inline-block" />
-              API Server: <span className="font-mono text-xs font-semibold text-blue-gray-800">Online</span>
-            </p>
-            <p className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500 inline-block" />
-              Active Role: <span className="font-semibold text-indigo-600 uppercase">{user?.role || 'Guest'}</span>
-            </p>
-            <p className="text-xs text-blue-gray-400 mt-2">
-              All payroll transactions execute atomically within MySQL InnoDB transactions.
-            </p>
-          </CardBody>
-        </Card>
+      {/* Main Charts: SalaryCostChart (bar) & NetSalaryTrendChart (line/area) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SalaryCostChart data={dashboardData.salary_by_department} />
+        <NetSalaryTrendChart data={dashboardData.monthly_net_salary_trend} />
       </div>
+
+      {/* Secondary Analytical Widgets: Donut, Attendance Overview, Time Off Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <PayslipStatusDonut statusCounts={dashboardData.payslip_status_counts} />
+        <AttendanceOverviewCard data={dashboardData.attendance_overview} />
+        <TimeOffOverviewCard data={dashboardData.time_off_overview} />
+      </div>
+
+      {/* Warnings & Alerts Section */}
+      <Card className="border border-blue-gray-100 shadow-sm">
+        <CardHeader floated={false} shadow={false} className="p-4 pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="h-5 w-5 text-amber-500" />
+            <div>
+              <Typography variant="h6" color="blue-gray" className="font-bold">
+                Flagged Payroll Anomaly & Warnings
+              </Typography>
+              <Typography variant="small" className="text-xs text-blue-gray-500">
+                Payslips with missing bank details, duplicate submissions, or schedule discrepancies
+              </Typography>
+            </div>
+          </div>
+          <Chip
+            size="sm"
+            variant="ghost"
+            color={dashboardData.warnings_count > 0 ? 'amber' : 'green'}
+            value={`${dashboardData.warnings_count} Warning${dashboardData.warnings_count !== 1 ? 's' : ''}`}
+          />
+        </CardHeader>
+        <CardBody className="p-0 overflow-x-auto">
+          {dashboardData.warnings.length === 0 ? (
+            <div className="p-6 text-center text-xs text-blue-gray-500">
+              🎉 All payslips and attendances are compliant. No anomalies flagged.
+            </div>
+          ) : (
+            <table className="w-full min-w-[640px] table-auto text-left">
+              <thead>
+                <tr className="border-y border-blue-gray-100 bg-blue-gray-50/50">
+                  <th className="p-3 text-xs font-bold uppercase text-blue-gray-600">Employee</th>
+                  <th className="p-3 text-xs font-bold uppercase text-blue-gray-600">Department</th>
+                  <th className="p-3 text-xs font-bold uppercase text-blue-gray-600">Payrun Period</th>
+                  <th className="p-3 text-xs font-bold uppercase text-blue-gray-600">Warning Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboardData.warnings.map((w) => (
+                  <tr key={w.payslip_id} className="border-b border-blue-gray-50 hover:bg-amber-50/30 transition-colors">
+                    <td className="p-3 text-xs font-semibold text-blue-gray-800">
+                      {w.employee_name} <span className="font-mono text-blue-gray-500">({w.employee_code})</span>
+                    </td>
+                    <td className="p-3 text-xs text-blue-gray-600">
+                      {w.department_name || 'Unassigned'}
+                    </td>
+                    <td className="p-3 text-xs text-blue-gray-600">
+                      <span className="font-medium text-blue-gray-700">{w.payrun_name}</span> ({w.period_start?.slice(0, 10)} to {w.period_end?.slice(0, 10)})
+                    </td>
+                    <td className="p-3 text-xs text-amber-800 font-medium">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+                        {w.warning_notes}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

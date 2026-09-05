@@ -476,3 +476,30 @@ SELECT
     SUM(status = 'missing_checkout') AS missing_checkout_count
 FROM attendances
 GROUP BY employee_id;
+
+-- Monthly payroll trend across payrun periods
+-- WHY THIS VIEW: Eliminates N+1 queries in the app layer and provides live aggregation for trend charts.
+CREATE OR REPLACE VIEW vw_monthly_payroll_trend AS
+SELECT
+    DATE_FORMAT(py.period_start, '%Y-%m') AS month_key,
+    DATE_FORMAT(py.period_start, '%b %Y') AS month_label,
+    COALESCE(SUM(p.gross_amount), 0) AS total_gross,
+    COALESCE(SUM(p.net_amount), 0) AS total_net,
+    COALESCE(SUM(CASE WHEN p.status = 'paid' THEN p.net_amount ELSE 0 END), 0) AS total_paid_net,
+    COUNT(p.id) AS payslip_count
+FROM payslips p
+JOIN payruns py ON p.payrun_id = py.id
+GROUP BY DATE_FORMAT(py.period_start, '%Y-%m'), DATE_FORMAT(py.period_start, '%b %Y')
+ORDER BY month_key ASC;
+
+-- Time off requests summary overview
+-- WHY THIS VIEW: Live KPI aggregation for pending approvals and leave volume without caching.
+CREATE OR REPLACE VIEW vw_time_off_summary AS
+SELECT
+    COUNT(*) AS total_requests,
+    COALESCE(SUM(status = 'submitted'), 0) AS pending_approvals,
+    COALESCE(SUM(status = 'approved'), 0) AS approved_requests,
+    COALESCE(SUM(status = 'refused'), 0) AS refused_requests,
+    COALESCE(SUM(duration), 0) AS total_leave_days
+FROM time_off_requests;
+
