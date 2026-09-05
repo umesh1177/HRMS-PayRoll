@@ -10,7 +10,9 @@
  * Issuing JWT credentials (handled by authController.js) or computing payslips (handled by payrollEngine.js).
  */
 
+const bcrypt = require('bcrypt');
 const pool = require('../config/db');
+const { sendWelcomeCredentialsEmail } = require('../services/emailService');
 const {
   isValidEmail,
   isValidPhone,

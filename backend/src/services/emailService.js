@@ -13,7 +13,7 @@ let transporter = null;
 function getTransporter() {
   if (transporter) return transporter;
 
-  const host = process.env.SMTP_HOST || 'smtp.ethereal.email';
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = Number(process.env.SMTP_PORT) || 587;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
@@ -23,20 +23,12 @@ function getTransporter() {
       host,
       port,
       secure: port === 465,
-      auth: { user, pass }
-    });
-  } else {
-    // If SMTP credentials are not configured in .env, create a JSON transport or dev logger
-    transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      auth: {
-        user: 'ethereal.user@ethereal.email',
-        pass: 'ethereal.password'
-      },
-      // When offline or unconfigured, don't throw connection errors
+      auth: { user, pass },
       tls: { rejectUnauthorized: false }
     });
+  } else {
+    // Return null when unconfigured so we don't block on network handshakes to dummy servers
+    transporter = null;
   }
 
   return transporter;
@@ -145,6 +137,11 @@ Please log in and update your password after your initial sign-in.
 
   try {
     const mailClient = getTransporter();
+    if (!mailClient) {
+      console.log(`ℹ️ [SMTP INFO] Live SMTP not configured in backend/.env (SMTP_USER & SMTP_PASS). Credentials logged above to console for development. To send live emails to real inboxes, add SMTP_USER & SMTP_PASS to backend/.env.`);
+      return { success: true, localOnly: true };
+    }
+
     const info = await mailClient.sendMail({
       from: fromAddress,
       to,
@@ -152,7 +149,7 @@ Please log in and update your password after your initial sign-in.
       text,
       html
     });
-    console.log(`[EMAIL SUCCESS] Message ID: ${info?.messageId || 'SENT'}`);
+    console.log(`[EMAIL SUCCESS] Message sent to ${to}! Message ID: ${info?.messageId || 'SENT'}`);
     return { success: true, messageId: info?.messageId };
   } catch (err) {
     console.warn(`[EMAIL NOTICE] SMTP Delivery fallback (Credentials logged above):`, err.message);
