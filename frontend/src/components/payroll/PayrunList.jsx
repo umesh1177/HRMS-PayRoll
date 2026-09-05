@@ -28,7 +28,8 @@ import {
   PlayIcon,
   CheckBadgeIcon,
   BanknotesIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  PrinterIcon
 } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import Modal from '../common/Modal';
@@ -46,6 +47,7 @@ import axiosClient from '../../api/axiosClient';
  * @param {Function} props.onPageChange - Page callback
  * @param {Function} props.onPayrunUpdated - Refresh callback
  * @param {Function} props.onViewPayslip - Callback to open individual payslip detail (slip: object) => void
+ * @param {Function} [props.onPrintPdf] - Callback to print/download payslip PDF (slip: object) => void
  * @param {React.ReactNode} [props.actionButton] - Create Payrun button
  * @returns {JSX.Element} Payruns table and detail modal
  */
@@ -57,6 +59,7 @@ export default function PayrunList({
   onPageChange,
   onPayrunUpdated,
   onViewPayslip,
+  onPrintPdf,
   actionButton
 }) {
   const { hasPermission } = useAuth();
@@ -394,18 +397,33 @@ export default function PayrunList({
                               )}
                             </td>
                             <td className="p-2.5 text-center">
-                              <Button
-                                size="sm"
-                                variant="text"
-                                color="indigo"
-                                className="text-[10px] py-1 px-2"
-                                onClick={() => {
-                                  setDetailModalOpen(false);
-                                  if (onViewPayslip) onViewPayslip(slip);
-                                }}
-                              >
-                                View Lines
-                              </Button>
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="text"
+                                  color="indigo"
+                                  className="text-[10px] py-1 px-2 font-semibold"
+                                  onClick={() => {
+                                    setDetailModalOpen(false);
+                                    if (onViewPayslip) onViewPayslip(slip);
+                                  }}
+                                >
+                                  View Lines
+                                </Button>
+                                {onPrintPdf && (
+                                  <Tooltip content="Print / Download PDF">
+                                    <IconButton
+                                      size="sm"
+                                      variant="text"
+                                      color="indigo"
+                                      className="h-7 w-7"
+                                      onClick={() => onPrintPdf(slip)}
+                                    >
+                                      <PrinterIcon className="h-4 w-4 text-indigo-600" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

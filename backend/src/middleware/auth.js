@@ -22,7 +22,7 @@ const jwt = require('jsonwebtoken');
  */
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer <token>"
+  const token = (authHeader && authHeader.split(' ')[1]) || req.query.token; // Format: "Bearer <token>" or ?token=<token>
 
   if (!token) {
     const error = new Error('Authentication token required');

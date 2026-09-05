@@ -212,6 +212,7 @@ export default function PayrollPage() {
               onPageChange={setPage}
               onPayrunUpdated={fetchPayruns}
               onViewPayslip={handleOpenPayslipDetail}
+              onPrintPdf={handlePrintPdf}
               actionButton={
                 canManagePayruns && (
                   <Button
