@@ -41,6 +41,7 @@ import PayslipStatusDonut from '../components/dashboard/PayslipStatusDonut';
 import AttendanceOverviewCard from '../components/dashboard/AttendanceOverviewCard';
 import TimeOffOverviewCard from '../components/dashboard/TimeOffOverviewCard';
 import EmployeeDashboard from '../components/dashboard/EmployeeDashboard';
+import HRManagerDashboard from '../components/dashboard/HRManagerDashboard';
 
 /**
  * Main Executive Dashboard.
@@ -51,11 +52,16 @@ export default function DashboardPage() {
   const { user, hasPermission } = useAuth();
 
   // If user is an employee, display the personalized employee self-service dashboard
-  if (
-    user?.role === 'Employee' ||
-    (!hasPermission('employee.view_all') && !hasPermission('payroll.payrun.manage') && !hasPermission('system.admin'))
-  ) {
+  if (user?.role === 'Employee') {
     return <EmployeeDashboard />;
+  }
+
+  // If user is HR Manager, display the focused HR operations & workforce dashboard
+  if (
+    user?.role === 'HR Manager' ||
+    (!hasPermission('payroll.structure.view') && !hasPermission('payroll.payrun.manage') && !hasPermission('system.admin'))
+  ) {
+    return <HRManagerDashboard />;
   }
 
   const [loading, setLoading] = useState(true);
@@ -274,30 +280,37 @@ export default function DashboardPage() {
       <div className="grid gap-y-6 gap-x-6 md:grid-cols-2 xl:grid-cols-4">
         {kpiCards.map((kpi) => {
           const Icon = kpi.icon;
+          const gradientClass =
+            kpi.color === 'indigo'
+              ? 'from-indigo-600 to-indigo-400 shadow-indigo-500/30'
+              : kpi.color === 'blue'
+              ? 'from-blue-600 to-cyan-500 shadow-blue-500/30'
+              : kpi.color === 'green'
+              ? 'from-emerald-600 to-emerald-400 shadow-emerald-500/30'
+              : 'from-amber-600 to-amber-400 shadow-amber-500/30';
+
           return (
-            <Card key={kpi.title} className="border border-blue-gray-100 shadow-sm">
-              <CardHeader
-                variant="gradient"
-                color={kpi.color}
-                floating={false}
-                shadow={false}
-                className="absolute grid h-12 w-12 place-items-center rounded-lg"
-              >
-                <Icon className="h-6 w-6 text-white" />
-              </CardHeader>
-              <CardBody className="p-4 text-right">
-                <Typography variant="small" className="font-normal text-blue-gray-600 text-xs">
-                  {kpi.title}
-                </Typography>
-                <Typography variant="h4" color="blue-gray" className="font-bold">
-                  {loading ? '...' : kpi.value}
-                </Typography>
+            <Card key={kpi.title} className="border border-blue-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <CardBody className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr ${gradientClass} text-white shadow-md`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <div className="text-right min-w-0 flex-1">
+                    <Typography variant="small" className="font-medium text-blue-gray-500 text-xs truncate">
+                      {kpi.title}
+                    </Typography>
+                    <Typography variant="h5" color="blue-gray" className="font-bold mt-0.5 truncate text-lg">
+                      {loading ? '...' : kpi.value}
+                    </Typography>
+                  </div>
+                </div>
+                <div className="border-t border-blue-gray-50 mt-3 pt-2.5">
+                  <Typography className="font-normal text-xs text-blue-gray-500 truncate">
+                    {kpi.footerText}
+                  </Typography>
+                </div>
               </CardBody>
-              <div className="border-t border-blue-gray-50 px-4 py-3">
-                <Typography className="font-normal text-xs text-blue-gray-500">
-                  {kpi.footerText}
-                </Typography>
-              </div>
             </Card>
           );
         })}
