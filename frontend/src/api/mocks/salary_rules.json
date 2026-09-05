@@ -1,0 +1,7 @@
+[
+  { "id": 1, "name": "Basic Wage", "code": "BASIC", "category": "basic", "computation_method": "fixed", "fixed_amount": 5000.00, "percentage_value": null, "percentage_basis_code": null, "formula": null, "active": 1 },
+  { "id": 2, "name": "House Rent Allowance (HRA)", "code": "HRA", "category": "allowance", "computation_method": "percentage", "fixed_amount": null, "percentage_value": 0.400, "percentage_basis_code": "BASIC", "formula": null, "active": 1 },
+  { "id": 3, "name": "Special Allowance", "code": "SPECIAL", "category": "allowance", "computation_method": "fixed", "fixed_amount": 800.00, "percentage_value": null, "percentage_basis_code": null, "formula": null, "active": 1 },
+  { "id": 4, "name": "Provident Fund (PF)", "code": "PF", "category": "deduction", "computation_method": "percentage", "fixed_amount": null, "percentage_value": 0.120, "percentage_basis_code": "BASIC", "formula": null, "active": 1 },
+  { "id": 5, "name": "Professional Tax", "code": "PT", "category": "deduction", "computation_method": "fixed", "fixed_amount": 200.00, "percentage_value": null, "percentage_basis_code": null, "formula": null, "active": 1 }
+]

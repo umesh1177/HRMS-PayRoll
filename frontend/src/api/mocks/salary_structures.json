@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "name": "Regular Salary Structure",
+    "description": "Standard permanent employee salary breakdown",
+    "status": "active",
+    "rules_count": 5,
+    "rules": [
+      { "structure_rule_id": 1, "salary_rule_id": 1, "name": "Basic Wage", "code": "BASIC", "sequence": 10, "category": "basic" },
+      { "structure_rule_id": 2, "salary_rule_id": 2, "name": "House Rent Allowance (HRA)", "code": "HRA", "sequence": 20, "category": "allowance" },
+      { "structure_rule_id": 3, "salary_rule_id": 3, "name": "Special Allowance", "code": "SPECIAL", "sequence": 30, "category": "allowance" },
+      { "structure_rule_id": 4, "salary_rule_id": 4, "name": "Provident Fund (PF)", "code": "PF", "sequence": 40, "category": "deduction" },
+      { "structure_rule_id": 5, "salary_rule_id": 5, "name": "Professional Tax", "code": "PT", "sequence": 50, "category": "deduction" }
+    ]
+  }
+]
