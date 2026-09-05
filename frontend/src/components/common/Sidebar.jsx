@@ -45,8 +45,7 @@ import ProfileModal from './ProfileModal';
  */
 export default function Sidebar({ isOpen = true, onClose }) {
   const { hasPermission, user } = useAuth();
-  const [payrollMenuOpen, setPayrollMenuOpen] = useState(true);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const isAdmin = user?.role_name === 'Admin' || user?.roles?.some((r) => r.name === 'Admin') || hasPermission('system.admin');
 
   // Define navigation groups matching PeoplePay360 domain modules
   const navItems = [
@@ -61,6 +60,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
       path: '/employees',
       icon: UserGroupIcon,
       show: hasPermission('employee.view_all')
+    },
+    {
+      name: 'Organization & Structure',
+      path: '/organization',
+      icon: BuildingOffice2Icon,
+      show: isAdmin
     },
     {
       name: 'Contracts',

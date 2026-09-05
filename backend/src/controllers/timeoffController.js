@@ -344,7 +344,7 @@ async function createRequest(req, res, next) {
     );
 
     if (overlapRows.length > 0) {
-      const error = new Error(`You already have an active time-off request (#${overlapRows[0].id}) during this date range`);
+      const error = new Error(`An active time-off request (#${overlapRows[0].id}) already exists for this employee during this date range`);
       error.status = 409;
       error.code = 'LEAVE_OVERLAP_CONFLICT';
       return next(error);

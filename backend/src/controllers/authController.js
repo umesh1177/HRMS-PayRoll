@@ -86,15 +86,16 @@ async function login(req, res, next) {
       return next(error);
     }
 
-    // Fetch user permissions via role_permissions
-    // Schema reference: role_permissions junction table
+    // Fetch user permissions via role_permissions (supporting both primary role_id and multi-role assignments in user_roles)
+    // Schema reference: role_permissions junction table & user_roles
     const permQuery = `
-      SELECT p.code
-      FROM role_permissions rp
-      JOIN permissions p ON rp.permission_id = p.id
-      WHERE rp.role_id = ?
+      SELECT DISTINCT p.code
+      FROM permissions p
+      JOIN role_permissions rp ON p.id = rp.permission_id
+      LEFT JOIN user_roles ur ON rp.role_id = ur.role_id AND ur.user_id = ?
+      WHERE ur.user_id = ? OR rp.role_id = ?
     `;
-    const [permRows] = await pool.query(permQuery, [user.role_id]);
+    const [permRows] = await pool.query(permQuery, [user.id, user.id, user.role_id]);
     const permissions = permRows.map((row) => row.code);
 
     // Update last_login_at timestamp
@@ -108,8 +109,8 @@ async function login(req, res, next) {
       email: user.email
     };
 
-    const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_peoplepay360_hackathon_2026';
-    const token = jwt.sign(tokenPayload, secret, { expiresIn: JWT_EXPIRATION });
+    // JWT_SECRET must be set in the environment — server.js throws at startup if missing
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRATION });
 
     // Safe user profile (excluding password_hash)
     const userProfile = {

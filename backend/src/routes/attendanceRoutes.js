@@ -24,6 +24,9 @@ router.get('/current', requirePermission('attendance.view_own'), attendanceContr
 router.get('/summary', requirePermission('attendance.view_own'), attendanceController.getSummary);
 router.post('/mark', requirePermission('attendance.manage_all'), attendanceController.markAttendance);
 
+// Employee summary listing for Admin & HR management
+router.get('/employee-summary', attendanceController.getEmployeeAttendanceSummary);
+
 // History listing (scoped internally to own records unless user has attendance.manage_all)
 router.get('/', attendanceController.listAttendance);
 

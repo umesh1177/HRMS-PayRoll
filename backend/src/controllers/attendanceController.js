@@ -435,6 +435,160 @@ async function manualEdit(req, res, next) {
 }
 
 /**
+ * Retrieves an employee-centric attendance directory with summary metrics (e.g. today's status, total records, total hours).
+ * Supports search (name, code), role filter, department filter, and date filters.
+ */
+async function getEmployeeAttendanceSummary(req, res, next) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const offset = (page - 1) * limit;
+
+    const { search, role_id, department_id, date, from, to } = req.query;
+
+    let whereConditions = [];
+    let queryParams = [];
+
+    // Filter by search (name, code, or email)
+    if (search && search.trim()) {
+      whereConditions.push('(e.first_name LIKE ? OR e.last_name LIKE ? OR e.employee_code LIKE ? OR e.email LIKE ?)');
+      const s = `%${search.trim()}%`;
+      queryParams.push(s, s, s, s);
+    }
+
+    // Filter by department
+    if (department_id) {
+      whereConditions.push('e.department_id = ?');
+      queryParams.push(department_id);
+    }
+
+    // Filter by role (from user / user_roles)
+    if (role_id) {
+      whereConditions.push(`(u.role_id = ? OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = ?))`);
+      queryParams.push(role_id, role_id);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Count employees matching criteria
+    const countSql = `
+      SELECT COUNT(DISTINCT e.id) as total 
+      FROM employees e
+      LEFT JOIN users u ON u.employee_id = e.id
+      ${whereClause}
+    `;
+    const [[{ total }]] = await pool.query(countSql, queryParams);
+
+    // Filter attendance subquery by date range if provided
+    let attDateFilter = '';
+    let attDateParams = [];
+    if (date) {
+      attDateFilter += ' AND DATE(a.check_in) = ?';
+      attDateParams.push(date);
+    } else {
+      if (from) {
+        attDateFilter += ' AND DATE(a.check_in) >= ?';
+        attDateParams.push(from);
+      }
+      if (to) {
+        attDateFilter += ' AND DATE(a.check_in) <= ?';
+        attDateParams.push(to);
+      }
+    }
+
+    const listSql = `
+      SELECT 
+        e.id,
+        e.employee_code,
+        e.first_name,
+        e.last_name,
+        CONCAT(e.first_name, ' ', e.last_name) AS name,
+        e.email,
+        e.phone,
+        e.department_id,
+        d.name AS department_name,
+        e.job_position_id,
+        jp.title AS job_title,
+        e.status AS employee_status,
+        e.photo_url,
+        u.role_id,
+        r.name AS primary_role_name,
+        (
+          SELECT JSON_ARRAYAGG(JSON_OBJECT('id', ro.id, 'name', ro.name))
+          FROM user_roles ur
+          JOIN roles ro ON ur.role_id = ro.id
+          WHERE ur.user_id = u.id
+        ) AS roles,
+        (
+          SELECT COUNT(*) 
+          FROM attendances a 
+          WHERE a.employee_id = e.id ${attDateFilter}
+        ) AS total_attendance_records,
+        (
+          SELECT COALESCE(SUM(a.worked_hours), 0)
+          FROM attendances a 
+          WHERE a.employee_id = e.id ${attDateFilter}
+        ) AS total_worked_hours,
+        (
+          SELECT a.check_in 
+          FROM attendances a 
+          WHERE a.employee_id = e.id 
+          ORDER BY a.check_in DESC 
+          LIMIT 1
+        ) AS latest_check_in,
+        (
+          SELECT a.check_out 
+          FROM attendances a 
+          WHERE a.employee_id = e.id 
+          ORDER BY a.check_in DESC 
+          LIMIT 1
+        ) AS latest_check_out,
+        (
+          SELECT a.status 
+          FROM attendances a 
+          WHERE a.employee_id = e.id 
+          ORDER BY a.check_in DESC 
+          LIMIT 1
+        ) AS latest_status,
+        (
+          SELECT CASE
+            WHEN a.check_out IS NULL AND DATE(a.check_in) = CURDATE() THEN 'checked_in'
+            WHEN a.check_out IS NOT NULL AND DATE(a.check_in) = CURDATE() THEN 'checked_out'
+            ELSE 'not_checked_in'
+          END
+          FROM attendances a
+          WHERE a.employee_id = e.id AND DATE(a.check_in) = CURDATE()
+          ORDER BY a.id DESC
+          LIMIT 1
+        ) AS today_punch_state
+      FROM employees e
+      LEFT JOIN departments d ON e.department_id = d.id
+      LEFT JOIN job_positions jp ON e.job_position_id = jp.id
+      LEFT JOIN users u ON u.employee_id = e.id
+      LEFT JOIN roles r ON u.role_id = r.id
+      ${whereClause}
+      ORDER BY e.id DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const allQueryParams = [...queryParams, ...attDateParams, ...attDateParams, limit, offset];
+    const [rows] = await pool.query(listSql, allQueryParams);
+
+    res.status(200).json({
+      data: rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Deletes an attendance record.
  */
 async function deleteAttendance(req, res, next) {
@@ -459,8 +613,7 @@ module.exports = {
   checkOut,
   getCurrentStatus,
   listAttendance,
-  getSummary,
-  markAttendance,
+  getEmployeeAttendanceSummary,
   manualEdit,
   deleteAttendance
 };
