@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "employee_id": 1,
+    "employee_name": "Alice Smith",
+    "employee_code": "EMP001",
+    "time_off_type_id": 1,
+    "type_name": "Paid Time Off (PTO)",
+    "unit": "day",
+    "allocated_amount": "20.00",
+    "taken_amount": "5.00",
+    "remaining_amount": "15.00",
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31",
+    "status": "approved"
+  },
+  {
+    "id": 2,
+    "employee_id": 2,
+    "employee_name": "Bob Miller",
+    "employee_code": "EMP002",
+    "time_off_type_id": 1,
+    "type_name": "Paid Time Off (PTO)",
+    "unit": "day",
+    "allocated_amount": "15.00",
+    "taken_amount": "0.00",
+    "remaining_amount": "15.00",
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31",
+    "status": "approved"
+  }
+]

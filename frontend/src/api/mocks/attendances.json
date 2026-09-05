@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "employee_id": 1,
+    "employee_name": "Alice Smith",
+    "employee_code": "EMP001",
+    "department_name": "Engineering",
+    "check_in": "2026-09-05T09:00:00.000Z",
+    "check_out": "2026-09-05T18:00:00.000Z",
+    "worked_hours": "8.00",
+    "status": "present",
+    "is_manual_edit": 0,
+    "edited_by": null,
+    "edited_by_email": null,
+    "notes": null
+  },
+  {
+    "id": 2,
+    "employee_id": 2,
+    "employee_name": "Bob Miller",
+    "employee_code": "EMP002",
+    "department_name": "Engineering",
+    "check_in": "2026-09-05T09:45:00.000Z",
+    "check_out": "2026-09-05T18:15:00.000Z",
+    "worked_hours": "7.50",
+    "status": "late",
+    "is_manual_edit": 0,
+    "edited_by": null,
+    "edited_by_email": null,
+    "notes": null
+  },
+  {
+    "id": 3,
+    "employee_id": 3,
+    "employee_name": "Clara Davis",
+    "employee_code": "EMP003",
+    "department_name": "Human Resources",
+    "check_in": "2026-09-05T08:30:00.000Z",
+    "check_out": "2026-09-05T18:30:00.000Z",
+    "worked_hours": "9.00",
+    "status": "overtime",
+    "is_manual_edit": 1,
+    "edited_by": 1,
+    "edited_by_email": "admin@peoplepay360.com",
+    "notes": "Approved 1h overtime for payroll cutoff"
+  }
+]

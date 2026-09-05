@@ -1,0 +1,5 @@
+[
+  { "id": 1, "name": "Engineering", "manager_id": 1, "manager_name": "Alice Smith", "employee_count": 2 },
+  { "id": 2, "name": "Human Resources", "manager_id": 3, "manager_name": "Clara Davis", "employee_count": 1 },
+  { "id": 3, "name": "Finance & Payroll", "manager_id": null, "manager_name": null, "employee_count": 0 }
+]

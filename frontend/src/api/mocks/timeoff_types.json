@@ -1,0 +1,5 @@
+[
+  { "id": 1, "name": "Paid Time Off (PTO)", "unit": "day", "requires_allocation": 1, "approval_type": "single", "affects_payroll": 0, "color": "#4f46e5", "active": 1 },
+  { "id": 2, "name": "Sick Leave", "unit": "day", "requires_allocation": 1, "approval_type": "single", "affects_payroll": 0, "color": "#ef4444", "active": 1 },
+  { "id": 3, "name": "Unpaid Leave", "unit": "day", "requires_allocation": 0, "approval_type": "single", "affects_payroll": 1, "color": "#f59e0b", "active": 1 }
+]
