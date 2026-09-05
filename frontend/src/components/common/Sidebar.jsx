@@ -57,7 +57,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
       name: 'Employees',
       path: '/employees',
       icon: UserGroupIcon,
-      show: hasPermission('employee.view_all') || hasPermission('employee.view_own')
+      show: hasPermission('employee.view_all')
     },
     {
       name: 'Contracts',
