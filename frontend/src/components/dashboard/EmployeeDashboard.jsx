@@ -37,6 +37,13 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
 import AttendanceWidget from '../attendance/AttendanceWidget';
+import {
+  formatDate,
+  formatTime,
+  formatDays,
+  formatWorkedHours,
+  formatDateRange
+} from '../../utils/formatters';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -127,13 +134,13 @@ export default function EmployeeDashboard() {
     },
     {
       title: 'Available Leave Days',
-      value: `${totalRemaining} Days`,
+      value: formatDays(totalRemaining),
       icon: CalendarIcon,
       gradient: 'from-emerald-600 to-emerald-400',
       shadowColor: 'emerald-500/30',
       footer: (
         <div className="text-xs text-blue-gray-500">
-          <span className="font-medium text-emerald-700">{totalTaken} taken</span> of {totalAllocated} allocated days
+          <span className="font-medium text-emerald-700">{formatDays(totalTaken)} taken</span> of {formatDays(totalAllocated)} allocated
         </div>
       )
     },
@@ -354,20 +361,20 @@ export default function EmployeeDashboard() {
                   {recentAttendance.map((row) => (
                     <tr key={row.id} className="hover:bg-blue-gray-50/30 transition-colors">
                       <td className="p-3 font-medium text-blue-gray-800">
-                        {row.check_in ? new Date(row.check_in).toLocaleDateString() : 'Today'}
+                        {formatDate(row.check_in)}
                       </td>
                       <td className="p-3 text-blue-gray-600">
-                        {row.check_in ? new Date(row.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        {formatTime(row.check_in)}
                       </td>
                       <td className="p-3 text-blue-gray-600">
-                        {row.check_out ? new Date(row.check_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (
+                        {row.check_out ? formatTime(row.check_out) : (
                           <span className="text-amber-600 font-semibold inline-flex items-center gap-1">
                             <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" /> Active
                           </span>
                         )}
                       </td>
                       <td className="p-3 font-semibold text-blue-gray-700">
-                        {row.worked_hours ? `${row.worked_hours} hrs` : '-'}
+                        {formatWorkedHours(row.worked_hours)}
                       </td>
                       <td className="p-3">
                         <Chip
@@ -385,7 +392,7 @@ export default function EmployeeDashboard() {
             )}
             <div className="p-3 border-t border-blue-gray-50 bg-blue-gray-50/20 text-xs text-blue-gray-500 flex items-center justify-between">
               <span>Automatic attendance tracking active</span>
-              <span className="font-semibold text-blue-gray-700">Standard 40h / week</span>
+              <span className="font-semibold text-blue-gray-700">Standard 40 hrs / week</span>
             </div>
           </CardBody>
         </Card>
@@ -430,10 +437,10 @@ export default function EmployeeDashboard() {
                     >
                       <p className="font-semibold text-blue-gray-800 truncate">{alloc.type_name}</p>
                       <p className="text-emerald-700 font-bold text-base mt-0.5">
-                        {alloc.remaining_amount !== undefined ? alloc.remaining_amount : (alloc.allocated_amount - alloc.taken_amount)} <span className="text-xs font-normal">{alloc.unit || 'days'}</span>
+                        {formatDays(alloc.remaining_amount !== undefined ? alloc.remaining_amount : (alloc.allocated_amount - alloc.taken_amount))}
                       </p>
                       <p className="text-[10px] text-blue-gray-500 mt-1">
-                        {alloc.taken_amount || 0} taken / {alloc.allocated_amount || 0} total
+                        {formatDays(alloc.taken_amount || 0)} taken / {formatDays(alloc.allocated_amount || 0)} total
                       </p>
                     </div>
                   ))
@@ -462,7 +469,7 @@ export default function EmployeeDashboard() {
                           {req.type_name || 'Paid Time Off'}
                         </span>
                         <span className="text-blue-gray-500 text-[11px] block">
-                          {req.date_from?.slice(0, 10)} to {req.date_to?.slice(0, 10)} ({req.number_of_days || 1} day(s))
+                          {formatDateRange(req.date_from, req.date_to)} ({formatDays(req.number_of_days || 1)})
                         </span>
                       </div>
                       <Chip

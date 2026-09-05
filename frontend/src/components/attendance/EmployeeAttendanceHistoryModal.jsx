@@ -25,6 +25,12 @@ import {
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
 import { useAuth } from '../../context/AuthContext';
+import {
+  formatDateWithDay,
+  formatTime,
+  formatWorkedHours,
+  formatDate
+} from '../../utils/formatters';
 
 export default function EmployeeAttendanceHistoryModal({
   open,
@@ -90,26 +96,6 @@ export default function EmployeeAttendanceHistoryModal({
     setFromDate('');
     setToDate('');
     setStatusFilter('');
-  };
-
-  const formatDateOnly = (dt) => {
-    if (!dt) return '-';
-    const date = new Date(dt);
-    return date.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const formatTimeOnly = (dt) => {
-    if (!dt) return '-';
-    const date = new Date(dt);
-    return date.toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   const getStatusColor = (status) => {
@@ -267,17 +253,17 @@ export default function EmployeeAttendanceHistoryModal({
                 records.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-3 font-medium text-slate-800 text-xs">
-                      {formatDateOnly(row.check_in)}
+                      {formatDateWithDay(row.check_in)}
                     </td>
                     <td className="p-3">
                       <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                        {formatTimeOnly(row.check_in)}
+                        {formatTime(row.check_in)}
                       </span>
                     </td>
                     <td className="p-3">
                       {row.check_out ? (
                         <span className="font-mono text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                          {formatTimeOnly(row.check_out)}
+                          {formatTime(row.check_out)}
                         </span>
                       ) : (
                         <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -287,7 +273,7 @@ export default function EmployeeAttendanceHistoryModal({
                     </td>
                     <td className="p-3">
                       <span className="font-bold font-mono text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
-                        {row.worked_hours !== null && row.worked_hours !== undefined ? `${row.worked_hours} hrs` : '-'}
+                        {formatWorkedHours(row.worked_hours, 'In Progress')}
                       </span>
                     </td>
                     <td className="p-3">

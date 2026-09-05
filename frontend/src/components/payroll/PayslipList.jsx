@@ -14,6 +14,7 @@ import { Typography, Chip, IconButton, Tooltip, Button } from '@material-tailwin
 import { EyeIcon, PrinterIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateRange, formatCurrency } from '../../utils/formatters';
 
 /**
  * Payslip List Component.
@@ -59,7 +60,7 @@ export default function PayslipList({
       render: (row) => (
         <div>
           <p className="text-xs font-semibold text-blue-gray-800">{row.payrun_name}</p>
-          <p className="text-xs text-blue-gray-400">{row.period_start} to {row.period_end}</p>
+          <p className="text-xs text-blue-gray-400">{formatDateRange(row.period_start, row.period_end)}</p>
         </div>
       )
     },
@@ -68,7 +69,7 @@ export default function PayslipList({
       label: 'Basic Wage',
       render: (row) => (
         <span className="font-mono text-xs text-blue-gray-700">
-          ${Number(row.basic_wage || 0).toLocaleString()}
+          {formatCurrency(row.basic_wage)}
         </span>
       )
     },
@@ -77,7 +78,7 @@ export default function PayslipList({
       label: 'Gross Amount',
       render: (row) => (
         <span className="font-mono text-xs font-semibold text-blue-gray-800">
-          ${Number(row.gross_amount || 0).toLocaleString()}
+          {formatCurrency(row.gross_amount)}
         </span>
       )
     },
@@ -86,7 +87,7 @@ export default function PayslipList({
       label: 'Net Payable',
       render: (row) => (
         <span className="font-mono font-bold text-sm text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">
-          ${Number(row.net_amount || 0).toLocaleString()}
+          {formatCurrency(row.net_amount)}
         </span>
       )
     },

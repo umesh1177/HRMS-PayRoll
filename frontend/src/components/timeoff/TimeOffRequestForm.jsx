@@ -25,6 +25,7 @@ import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
 import { validateDateRange } from '../../utils/formValidators';
 import { useAuth } from '../../context/AuthContext';
+import { formatDays } from '../../utils/formatters';
 
 export default function TimeOffRequestForm({
   open,
@@ -307,7 +308,7 @@ export default function TimeOffRequestForm({
         <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-between">
           <span className="text-xs font-medium text-indigo-800">Calculated Leave Duration:</span>
           <span className={`font-bold text-sm font-mono ${duration <= 0 ? 'text-red-600' : 'text-indigo-900'}`}>
-            {duration > 0 ? `${duration} Day(s)` : 'Invalid dates'}
+            {duration > 0 ? formatDays(duration) : 'Invalid dates'}
           </span>
         </div>
 

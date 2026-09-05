@@ -14,6 +14,7 @@ import axiosClient from '../api/axiosClient';
 import UserForm from '../components/users/UserForm';
 import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import { useAuth } from '../context/AuthContext';
+import { formatDateTime } from '../utils/formatters';
 
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth();
@@ -178,7 +179,7 @@ export default function UserManagementPage() {
       label: 'Last Login',
       render: (row) => (
         <span className="text-xs text-blue-gray-500">
-          {row.last_login_at ? new Date(row.last_login_at).toLocaleString() : 'Never'}
+          {formatDateTime(row.last_login_at)}
         </span>
       )
     },

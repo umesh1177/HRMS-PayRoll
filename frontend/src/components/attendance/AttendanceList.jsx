@@ -14,6 +14,7 @@ import { Typography, Chip, IconButton, Tooltip } from '@material-tailwind/react'
 import { PencilSquareIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateTime, formatWorkedHours } from '../../utils/formatters';
 
 /**
  * Attendance List component.
@@ -41,17 +42,6 @@ export default function AttendanceList({
 }) {
   const { hasPermission } = useAuth();
   const canManageAll = hasPermission('attendance.manage_all');
-
-  const formatDateTime = (dt) => {
-    if (!dt) return '-';
-    const date = new Date(dt);
-    return date.toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const columns = [
     {
@@ -89,7 +79,7 @@ export default function AttendanceList({
       label: 'Worked Hours',
       render: (row) => (
         <span className="font-bold font-mono text-xs text-indigo-700 bg-indigo-50 px-2 py-1 rounded">
-          {row.worked_hours !== null ? `${row.worked_hours} hrs` : 'In Progress'}
+          {formatWorkedHours(row.worked_hours)}
         </span>
       )
     },

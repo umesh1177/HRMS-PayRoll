@@ -14,6 +14,7 @@ import { Typography, Chip, IconButton, Tooltip } from '@material-tailwind/react'
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
+import { formatCurrency, formatDateRange } from '../../utils/formatters';
 
 /**
  * Contract List component.
@@ -83,7 +84,7 @@ export default function ContractList({
       label: 'Monthly Wage',
       render: (row) => (
         <span className="font-bold text-sm text-indigo-700">
-          ${Number(row.wage || 0).toLocaleString()}
+          {formatCurrency(row.wage)}
         </span>
       )
     },
@@ -101,7 +102,7 @@ export default function ContractList({
       label: 'Duration',
       render: (row) => (
         <span className="text-xs text-blue-gray-600">
-          {row.start_date} → {row.end_date || 'Open-ended'}
+          {formatDateRange(row.start_date, row.end_date)}
         </span>
       )
     },

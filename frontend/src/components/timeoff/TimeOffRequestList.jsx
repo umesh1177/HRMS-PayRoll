@@ -22,6 +22,7 @@ import { CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
+import { formatDateRange, formatDays } from '../../utils/formatters';
 
 /**
  * Time Off Requests List.
@@ -137,10 +138,10 @@ export default function TimeOffRequestList({
       render: (row) => (
         <div>
           <p className="text-xs font-semibold text-blue-gray-800">
-            {row.start_date} → {row.end_date}
+            {formatDateRange(row.start_date || row.date_from, row.end_date || row.date_to)}
           </p>
-          <p className="text-xs text-blue-gray-500 font-mono">
-            {row.duration} day(s)
+          <p className="text-xs text-indigo-600 font-semibold">
+            {formatDays(row.duration || row.number_of_days)}
           </p>
         </div>
       )

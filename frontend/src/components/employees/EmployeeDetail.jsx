@@ -29,6 +29,14 @@ import {
 } from '@heroicons/react/24/outline';
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
+import {
+  formatDate,
+  formatDateRange,
+  formatTime,
+  formatWorkedHours,
+  formatDays,
+  formatCurrency
+} from '../../utils/formatters';
 
 /**
  * Employee Detail Modal View.
@@ -161,7 +169,7 @@ export default function EmployeeDetail({ open, onClose, employee }) {
               </div>
               <div className="p-3 rounded-lg border border-blue-gray-100 md:col-span-2">
                 <span className="text-xs text-blue-gray-400 font-medium">Hire Date</span>
-                <p className="font-semibold text-blue-gray-800">{employee.date_joined || 'N/A'}</p>
+                <p className="font-semibold text-blue-gray-800">{formatDate(employee.date_joined)}</p>
               </div>
             </div>
           </TabPanel>
@@ -181,11 +189,11 @@ export default function EmployeeDetail({ open, onClose, employee }) {
                         {c.name || c.structure_name || 'Regular Structure'}
                       </p>
                       <p className="text-xs text-blue-gray-500">
-                        {c.start_date} {c.end_date ? `to ${c.end_date}` : '(Open-ended)'} • <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
+                        {formatDateRange(c.start_date, c.end_date)} • <span className="capitalize">{c.contract_type?.replace('_', ' ')}</span>
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-indigo-600">${Number(c.wage).toLocaleString()}/mo</p>
+                      <p className="font-bold text-indigo-600">{formatCurrency(c.wage)}/mo</p>
                       <Chip
                         size="sm"
                         variant="ghost"
@@ -211,10 +219,15 @@ export default function EmployeeDetail({ open, onClose, employee }) {
                 {attendances.slice(0, 5).map((a) => (
                   <div key={a.id} className="p-2.5 rounded-lg border border-blue-gray-100 flex items-center justify-between text-xs">
                     <div>
-                      <span className="font-semibold text-blue-gray-800">{a.check_in}</span>
-                      <span className="text-blue-gray-400 ml-2">→ {a.check_out || 'Active'}</span>
+                      <span className="font-semibold text-blue-gray-800">{formatDate(a.check_in)} ({formatTime(a.check_in)})</span>
+                      <span className="text-blue-gray-400 ml-2">→ {a.check_out ? formatTime(a.check_out) : 'Active'}</span>
                     </div>
-                    <Chip size="sm" variant="ghost" value={a.status} color={a.status === 'present' ? 'green' : 'amber'} />
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                        {formatWorkedHours(a.worked_hours)}
+                      </span>
+                      <Chip size="sm" variant="ghost" value={a.status} color={a.status === 'present' ? 'green' : 'amber'} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -233,7 +246,7 @@ export default function EmployeeDetail({ open, onClose, employee }) {
                   <div key={t.id} className="p-2.5 rounded-lg border border-blue-gray-100 flex items-center justify-between text-xs">
                     <div>
                       <span className="font-semibold text-blue-gray-800">{t.type_name || 'Leave'}</span>
-                      <span className="text-blue-gray-500 ml-2">({t.duration} days: {t.start_date} to {t.end_date})</span>
+                      <span className="text-blue-gray-500 ml-2">({formatDays(t.duration || t.number_of_days)}: {formatDateRange(t.start_date || t.date_from, t.end_date || t.date_to)})</span>
                     </div>
                     <Chip size="sm" variant="ghost" value={t.status} color={t.status === 'approved' ? 'green' : 'amber'} />
                   </div>

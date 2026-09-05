@@ -30,6 +30,7 @@ import {
 } from '@heroicons/react/24/solid';
 import axiosClient from '../../api/axiosClient';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateWithDay, formatTime, formatWorkedHours } from '../../utils/formatters';
 
 /**
  * Attendance Punch Clock Widget.
@@ -98,9 +99,10 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
       const res = await axiosClient.post('/attendance/check-out');
       setIsCheckedIn(false);
       setActiveSession(null);
+      const formattedDuration = formatWorkedHours(res.data?.data?.worked_hours, '0 hrs');
       setAlertInfo({
         type: 'green',
-        message: `Check-out recorded! Total hours: ${res.data?.data?.worked_hours || 0} hrs.`
+        message: `Check-out recorded! Total shift duration: ${formattedDuration}.`
       });
       if (onPunchChange) onPunchChange();
     } catch (err) {
@@ -128,14 +130,14 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
               Punch Clock & Timesheet
             </Typography>
             <Typography variant="small" color="white" className="opacity-80 text-xs">
-              {currentTime.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
+              {formatDateWithDay(currentTime)}
             </Typography>
           </div>
         </div>
 
         <div className="text-right text-white">
           <span className="font-mono font-bold text-xl tracking-wider">
-            {currentTime.toLocaleTimeString()}
+            {formatTime(currentTime)}
           </span>
         </div>
       </CardHeader>
@@ -167,7 +169,7 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
             {isCheckedIn && activeSession?.check_in ? (
               <span className="text-xs text-blue-gray-500 flex items-center gap-1">
                 <CheckCircleIcon className="h-4 w-4 text-green-500" />
-                Session active since {new Date(activeSession.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                Session active since {formatTime(activeSession.check_in)}
               </span>
             ) : (
               <span className="text-xs text-blue-gray-400">

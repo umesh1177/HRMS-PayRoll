@@ -42,6 +42,7 @@ import AttendanceOverviewCard from '../components/dashboard/AttendanceOverviewCa
 import TimeOffOverviewCard from '../components/dashboard/TimeOffOverviewCard';
 import EmployeeDashboard from '../components/dashboard/EmployeeDashboard';
 import HRManagerDashboard from '../components/dashboard/HRManagerDashboard';
+import { formatDateRange, formatCurrency } from '../utils/formatters';
 
 /**
  * Main Executive Dashboard.
@@ -375,7 +376,7 @@ export default function DashboardPage() {
                       {w.department_name || 'Unassigned'}
                     </td>
                     <td className="p-3 text-xs text-blue-gray-600">
-                      <span className="font-medium text-blue-gray-700">{w.payrun_name}</span> ({w.period_start?.slice(0, 10)} to {w.period_end?.slice(0, 10)})
+                      <span className="font-medium text-blue-gray-700">{w.payrun_name}</span> ({formatDateRange(w.period_start, w.period_end)})
                     </td>
                     <td className="p-3 text-xs text-amber-800 font-medium">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200">

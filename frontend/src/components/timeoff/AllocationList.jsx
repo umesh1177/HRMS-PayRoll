@@ -25,6 +25,7 @@ import Modal from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
 import { isValidPositiveNumber, isValidDateRange } from '../../utils/formValidators';
+import { formatDateRange, formatDays } from '../../utils/formatters';
 
 /**
  * Time Off Allocation List.
@@ -162,7 +163,7 @@ export default function AllocationList({
       label: 'Total Allocated',
       render: (row) => (
         <span className="font-mono font-bold text-xs text-blue-gray-800">
-          {row.allocated_amount} {row.unit}s
+          {formatDays(row.allocated_amount)}
         </span>
       )
     },
@@ -171,7 +172,7 @@ export default function AllocationList({
       label: 'Taken',
       render: (row) => (
         <span className="font-mono text-xs text-amber-700 font-semibold">
-          {row.taken_amount} {row.unit}s
+          {formatDays(row.taken_amount)}
         </span>
       )
     },
@@ -186,7 +187,7 @@ export default function AllocationList({
         return (
           <div className="w-36">
             <div className="flex justify-between text-[11px] font-semibold mb-1">
-              <span className="text-indigo-700">{remaining} remaining</span>
+              <span className="text-indigo-700">{formatDays(remaining)} remaining</span>
               <span className="text-blue-gray-400">{pctUsed}% used</span>
             </div>
             <Progress value={pctUsed} color={pctUsed > 80 ? 'amber' : 'indigo'} size="sm" />
@@ -199,7 +200,7 @@ export default function AllocationList({
       label: 'Validity Period',
       render: (row) => (
         <span className="text-xs text-blue-gray-500">
-          {row.valid_from} → {row.valid_to || 'Ongoing'}
+          {formatDateRange(row.valid_from, row.valid_to)}
         </span>
       )
     }

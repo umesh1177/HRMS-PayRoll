@@ -42,6 +42,7 @@ import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
 import AttendanceOverviewCard from './AttendanceOverviewCard';
 import TimeOffOverviewCard from './TimeOffOverviewCard';
+import { formatDateRange, formatDays } from '../../utils/formatters';
 
 export default function HRManagerDashboard() {
   const { user } = useAuth();
@@ -299,10 +300,10 @@ export default function HRManagerDashboard() {
                           </span>
                         </td>
                         <td className="p-3 text-blue-gray-600 text-[11px]">
-                          {req.date_from?.slice(0, 10)} to {req.date_to?.slice(0, 10)}
+                          {formatDateRange(req.date_from, req.date_to)}
                         </td>
                         <td className="p-3 font-bold text-blue-gray-700">
-                          {req.number_of_days || 1} d
+                          {formatDays(req.number_of_days || 1)}
                         </td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">

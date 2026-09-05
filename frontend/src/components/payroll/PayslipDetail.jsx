@@ -25,6 +25,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Modal from '../common/Modal';
 import { printPayslip, downloadPayslip } from '../../utils/payslipPrinter';
+import { formatDateRange, formatDays, formatCurrency } from '../../utils/formatters';
 
 /**
  * Payslip Detail Modal.
@@ -136,15 +137,15 @@ export default function PayslipDetail({ open, onClose, payslip }) {
             </div>
             <div>
               <span className="text-blue-gray-400 font-medium">Payroll Period</span>
-              <p className="font-semibold text-blue-gray-800">{detailedSlip?.period_start || payslip.period_start} to {detailedSlip?.period_end || payslip.period_end}</p>
+              <p className="font-semibold text-blue-gray-800">{formatDateRange(detailedSlip?.period_start || payslip.period_start, detailedSlip?.period_end || payslip.period_end)}</p>
             </div>
             <div>
               <span className="text-blue-gray-400 font-medium">Basic Wage</span>
-              <p className="font-bold text-blue-gray-800">${Number(detailedSlip?.basic_wage || payslip.basic_wage || 0).toLocaleString()}</p>
+              <p className="font-bold text-blue-gray-800">{formatCurrency(detailedSlip?.basic_wage || payslip.basic_wage)}</p>
             </div>
             <div>
               <span className="text-blue-gray-400 font-medium">Worked Days</span>
-              <p className="font-bold text-blue-gray-800">{detailedSlip?.worked_days || payslip.worked_days || 0} days</p>
+              <p className="font-bold text-blue-gray-800">{formatDays(detailedSlip?.worked_days || payslip.worked_days)}</p>
             </div>
           </div>
 
@@ -171,7 +172,7 @@ export default function PayslipDetail({ open, onClose, payslip }) {
                         <span className="text-blue-gray-400 font-mono ml-1.5">({l.code})</span>
                       </td>
                       <td className="p-2.5 text-right font-mono font-bold text-green-700">
-                        +${Number(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        +{formatCurrency(l.amount)}
                       </td>
                     </tr>
                   ))}
@@ -196,7 +197,7 @@ export default function PayslipDetail({ open, onClose, payslip }) {
                         <span className="text-blue-gray-400 font-mono ml-1.5">({l.code})</span>
                       </td>
                       <td className="p-2.5 text-right font-mono font-bold text-red-700">
-                        -${Number(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        -{formatCurrency(l.amount)}
                       </td>
                     </tr>
                   ))}
@@ -213,14 +214,14 @@ export default function PayslipDetail({ open, onClose, payslip }) {
             <div>
               <span className="text-xs text-indigo-200">Gross Total Earnings</span>
               <p className="font-bold text-lg font-mono">
-                ${Number(detailedSlip?.gross_amount || payslip.gross_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatCurrency(detailedSlip?.gross_amount || payslip.gross_amount)}
               </p>
             </div>
 
             <div className="text-right">
               <span className="text-xs font-semibold text-indigo-200 uppercase tracking-wide">Net Payable Salary</span>
               <p className="font-black text-2xl font-mono text-white">
-                ${Number(detailedSlip?.net_amount || payslip.net_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {formatCurrency(detailedSlip?.net_amount || payslip.net_amount)}
               </p>
             </div>
           </div>

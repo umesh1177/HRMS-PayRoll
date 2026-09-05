@@ -43,6 +43,12 @@ import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
 import mockAttendances from '../api/mocks/attendances.json';
+import {
+  formatTime,
+  formatDateTime,
+  formatDate,
+  formatWorkedHours
+} from '../utils/formatters';
 
 export default function AttendancePage() {
   const { hasPermission, user } = useAuth();
@@ -238,24 +244,6 @@ export default function AttendancePage() {
     } finally {
       setDeleteLoading(false);
     }
-  };
-
-  const formatTime = (dt) => {
-    if (!dt) return '-';
-    return new Date(dt).toLocaleTimeString(undefined, {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatDateTime = (dt) => {
-    if (!dt) return '-';
-    return new Date(dt).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   // If user is a regular employee without manage_all permissions, render self-service punch & logs
@@ -530,7 +518,7 @@ export default function AttendancePage() {
                       {/* Total Hours */}
                       <td className="p-4">
                         <span className="font-bold font-mono text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded border border-indigo-100">
-                          {Number(emp.total_worked_hours || 0).toFixed(1)} hrs
+                          {formatWorkedHours(emp.total_worked_hours, '0 hrs')}
                         </span>
                       </td>
 

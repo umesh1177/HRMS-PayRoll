@@ -29,6 +29,7 @@ import {
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
 import { validatePayrun } from '../../utils/formValidators';
+import { formatDateRange, formatCurrency } from '../../utils/formatters';
 
 /**
  * Payrun Creation Wizard.
@@ -327,7 +328,7 @@ export default function PayrunForm({
           <div className="flex items-center justify-between p-3 rounded-lg bg-indigo-50 border border-indigo-100 text-xs">
             <div>
               <span className="font-bold text-indigo-900">Period: </span>
-              <span className="text-indigo-700">{scopeData.period_start} to {scopeData.period_end}</span>
+              <span className="text-indigo-700">{formatDateRange(scopeData.period_start, scopeData.period_end)}</span>
             </div>
             <div className="font-semibold text-indigo-800">
               {selectedEmpIds.size} of {eligibleEmployees.length} Selected
@@ -379,7 +380,7 @@ export default function PayrunForm({
                         </td>
                         <td className="p-3 text-blue-gray-600">{emp.department_name || 'N/A'}</td>
                         <td className="p-3 text-right font-mono font-bold text-indigo-700">
-                          ${Number(emp.wage || 0).toLocaleString()}
+                          {formatCurrency(emp.wage)}
                         </td>
                       </tr>
                     );

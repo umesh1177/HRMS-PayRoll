@@ -14,6 +14,7 @@ import { Typography, Chip, IconButton, Tooltip } from '@material-tailwind/react'
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
+import { formatWeeklyHours } from '../../utils/formatters';
 
 /**
  * Schedule List component.
@@ -58,7 +59,7 @@ export default function ScheduleList({
       label: 'Weekly Hours',
       render: (row) => (
         <span className="font-bold text-sm text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">
-          {row.total_weekly_hours} hrs / week
+          {formatWeeklyHours(row.total_weekly_hours)}
         </span>
       )
     },

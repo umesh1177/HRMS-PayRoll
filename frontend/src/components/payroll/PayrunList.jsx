@@ -35,6 +35,7 @@ import DataTable from '../common/DataTable';
 import Modal from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
+import { formatDateRange, formatCurrency } from '../../utils/formatters';
 
 /**
  * Payrun List Component.
@@ -156,7 +157,7 @@ export default function PayrunList({
       label: 'Payroll Period',
       render: (row) => (
         <span className="text-xs text-blue-gray-700 font-medium">
-          {row.period_start} → {row.period_end}
+          {formatDateRange(row.period_start, row.period_end)}
         </span>
       )
     },
@@ -174,7 +175,7 @@ export default function PayrunList({
       label: 'Total Net Cost',
       render: (row) => (
         <span className="font-bold text-sm text-indigo-700 font-mono">
-          ${Number(row.total_net_amount || 0).toLocaleString()}
+          {formatCurrency(row.total_net_amount)}
         </span>
       )
     },
@@ -341,7 +342,7 @@ export default function PayrunList({
                 </div>
                 <div>
                   <span className="text-blue-gray-500 font-medium">Period</span>
-                  <p className="font-semibold text-blue-gray-800">{selectedPayrun.period_start} to {selectedPayrun.period_end}</p>
+                  <p className="font-semibold text-blue-gray-800">{formatDateRange(selectedPayrun.period_start, selectedPayrun.period_end)}</p>
                 </div>
                 <div>
                   <span className="text-blue-gray-500 font-medium">Payslips Generated</span>
@@ -378,10 +379,10 @@ export default function PayrunList({
                               {slip.employee_name} <span className="text-blue-gray-400 font-mono">({slip.employee_code})</span>
                             </td>
                             <td className="p-2.5 text-right font-mono font-bold text-blue-gray-700">
-                              ${Number(slip.gross_amount || 0).toLocaleString()}
+                              {formatCurrency(slip.gross_amount)}
                             </td>
                             <td className="p-2.5 text-right font-mono font-bold text-indigo-700">
-                              ${Number(slip.net_amount || 0).toLocaleString()}
+                              {formatCurrency(slip.net_amount)}
                             </td>
                             <td className="p-2.5 text-center">
                               {slip.has_warning ? (
