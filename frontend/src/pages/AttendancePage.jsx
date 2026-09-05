@@ -96,12 +96,6 @@ export default function AttendancePage() {
   // Self-service employee logs (for all logins except Admin)
   const [selfRecords, setSelfRecords] = useState([]);
   const [selfLoading, setSelfLoading] = useState(false);
-  const [attendanceStats, setAttendanceStats] = useState({
-    today_hours: 0,
-    week_hours: 0,
-    month_hours: 0
-  });
-  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -109,26 +103,8 @@ export default function AttendancePage() {
       fetchEmployeeSummaries();
     } else {
       fetchSelfAttendance();
-      fetchAttendanceStats();
     }
   }, [isAdmin, page, search, selectedRole, selectedDepartment, filterDate]);
-
-  const fetchAttendanceStats = async () => {
-    setStatsLoading(true);
-    try {
-      const res = await axiosClient.get('/attendance/my-stats');
-      if (res.data?.data) {
-        setAttendanceStats(res.data.data);
-      } else {
-        setAttendanceStats({ today_hours: 0, week_hours: 0, month_hours: 0 });
-      }
-    } catch (err) {
-      console.warn('Could not fetch personal attendance stats:', err);
-      setAttendanceStats({ today_hours: 0, week_hours: 0, month_hours: 0 });
-    } finally {
-      setStatsLoading(false);
-    }
-  };
 
   const fetchFilterOptions = async () => {
     try {
@@ -233,7 +209,6 @@ export default function AttendancePage() {
         fetchEmployeeSummaries();
       } else {
         fetchSelfAttendance();
-        fetchAttendanceStats();
       }
     } catch (err) {
       const msg = err.response?.data?.error?.message || 'Failed to correct attendance record.';
@@ -261,7 +236,6 @@ export default function AttendancePage() {
         fetchEmployeeSummaries();
       } else {
         fetchSelfAttendance();
-        fetchAttendanceStats();
       }
     } catch (err) {
       setDeleteError(err.response?.data?.message || 'Failed to delete attendance record.');
@@ -270,74 +244,12 @@ export default function AttendancePage() {
     }
   };
 
-  // For all logins except Admin: render real calculated KPI cards, punch clock & personal logs
+  // For all logins except Admin: render self-service punch clock & personal logs
   if (!isAdmin) {
-    const employeeKpis = [
-      {
-        title: 'Today Working Hours',
-        value: formatWorkedHours(attendanceStats.today_hours),
-        icon: ClockIcon,
-        gradient: 'from-indigo-600 to-indigo-400',
-        shadowColor: 'indigo-500/30',
-        subtitle: 'Daily logged working hours'
-      },
-      {
-        title: 'This Week Working Hours',
-        value: formatWorkedHours(attendanceStats.week_hours),
-        icon: CalendarDaysIcon,
-        gradient: 'from-emerald-600 to-emerald-400',
-        shadowColor: 'emerald-500/30',
-        subtitle: 'Current work week total'
-      },
-      {
-        title: 'This Month Working Hours',
-        value: formatWorkedHours(attendanceStats.month_hours),
-        icon: CalendarIcon,
-        gradient: 'from-blue-600 to-cyan-500',
-        shadowColor: 'blue-500/30',
-        subtitle: 'Monthly cumulative total'
-      }
-    ];
-
-    const handleSelfPunchChange = () => {
-      fetchSelfAttendance();
-      fetchAttendanceStats();
-    };
-
     return (
       <div className="mt-6 flex flex-col gap-6">
-        {/* Working Hours KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {employeeKpis.map((kpi, idx) => {
-            const Icon = kpi.icon;
-            return (
-              <Card key={idx} className="border border-blue-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                <CardBody className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr ${kpi.gradient} text-white shadow-md shadow-${kpi.shadowColor}`}>
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div className="text-right min-w-0 flex-1">
-                      <Typography variant="small" className="font-medium text-blue-gray-500 text-xs truncate">
-                        {kpi.title}
-                      </Typography>
-                      <Typography variant="h5" color="blue-gray" className="font-bold font-mono mt-0.5 truncate text-xl">
-                        {statsLoading ? '...' : kpi.value}
-                      </Typography>
-                    </div>
-                  </div>
-                  <div className="border-t border-blue-gray-50 mt-3 pt-2 text-[11px] text-blue-gray-500 flex items-center justify-between">
-                    <span>{kpi.subtitle}</span>
-                    <span className="font-medium text-indigo-600">Live</span>
-                  </div>
-                </CardBody>
-              </Card>
-            );
-          })}
-        </div>
-
         {/* Live Punch Clock Self-Service */}
-        <AttendanceWidget onPunchChange={handleSelfPunchChange} />
+        <AttendanceWidget onPunchChange={fetchSelfAttendance} />
 
         {/* Personal Attendance Logs Table */}
         <AttendanceList
