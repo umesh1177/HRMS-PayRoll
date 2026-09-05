@@ -56,6 +56,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
       show: isAdmin
     },
     {
+      name: 'Working Schedules',
+      path: '/schedules',
+      icon: CalendarDaysIcon,
+      show: isAdmin || hasPermission('schedule.manage')
+    },
+    {
       name: 'Contracts',
       path: '/contracts',
       icon: DocumentTextIcon,
