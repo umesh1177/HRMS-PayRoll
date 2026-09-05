@@ -76,7 +76,10 @@ export default function EmployeeForm({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const [loadingCode, setLoadingCode] = useState(false);
+
   useEffect(() => {
+    let isMounted = true;
     if (employee) {
       setFormData({
         employee_code: employee.employee_code || '',
@@ -99,9 +102,8 @@ export default function EmployeeForm({
         : employee.role_id ? [employee.role_id] : [];
       setSelectedRoleIds(existingRoleIds);
     } else {
-      const randomCode = `EMP${Math.floor(100 + Math.random() * 900)}`;
       setFormData({
-        employee_code: randomCode,
+        employee_code: '',
         first_name: '',
         last_name: '',
         email: '',
@@ -118,14 +120,42 @@ export default function EmployeeForm({
       // Default to Employee role
       const defaultRole = roles.find((r) => r.name === 'Employee') || roles[0];
       setSelectedRoleIds(defaultRole ? [defaultRole.id] : []);
+
+      if (open) {
+        setLoadingCode(true);
+        axiosClient
+          .get('/employees/next-code')
+          .then((res) => {
+            if (isMounted && res.data?.data?.employee_code) {
+              setFormData((prev) => ({
+                ...prev,
+                employee_code: res.data.data.employee_code
+              }));
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to fetch next employee code:', err);
+            if (isMounted) {
+              setFormData((prev) => ({
+                ...prev,
+                employee_code: `EMP${Math.floor(100 + Math.random() * 900)}`
+              }));
+            }
+          })
+          .finally(() => {
+            if (isMounted) setLoadingCode(false);
+          });
+      }
     }
     setTouched({});
     setErrorMessage('');
+    return () => {
+      isMounted = false;
+    };
   }, [employee, open, roles]);
 
   // Field validation checks
   const errors = {
-    employee_code: validateRequired(formData.employee_code, 'Employee code', 2),
     first_name: validateRequired(formData.first_name, 'First name', 2),
     last_name: validateRequired(formData.last_name, 'Last name', 2),
     email: validateEmail(formData.email),
@@ -237,21 +267,25 @@ export default function EmployeeForm({
         {/* SECTION 1: Personal & Demographic Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
-              Employee Code *
-            </Typography>
+            <div className="flex items-center justify-between mb-1">
+              <Typography variant="small" color="blue-gray" className="font-semibold text-xs flex items-center gap-1">
+                Employee Code <span className="text-red-500">*</span>
+              </Typography>
+              <span className="text-[10px] font-medium px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 flex items-center gap-1">
+                🔒 Auto-Generated & Unique
+              </span>
+            </div>
             <Input
               name="employee_code"
-              value={formData.employee_code}
-              onChange={handleChange}
-              onBlur={() => handleBlur('employee_code')}
-              error={!!(touched.employee_code && errors.employee_code)}
-              placeholder="EMP001"
-              required
+              value={formData.employee_code || (loadingCode ? 'Generating unique code...' : 'EMP...')}
+              readOnly
+              disabled
+              className="!bg-slate-100 !border-slate-300 !text-slate-700 font-mono font-bold tracking-wider cursor-not-allowed select-none !opacity-100"
+              placeholder={loadingCode ? 'Generating...' : 'EMP001'}
             />
-            {touched.employee_code && errors.employee_code && (
-              <p className="text-[11px] text-red-500 mt-1">{errors.employee_code}</p>
-            )}
+            <p className="text-[11px] text-blue-gray-400 mt-1">
+              System-generated unique identifier. Immutable and non-editable.
+            </p>
           </div>
 
           <div>

@@ -17,6 +17,7 @@ const { requirePermission } = require('../middleware/rbac');
 router.use(authenticateToken);
 
 router.get('/', employeeController.listEmployees);
+router.get('/next-code', employeeController.getNextEmployeeCode);
 router.get('/:id', employeeController.getEmployeeById);
 router.post('/', requirePermission('employee.manage'), employeeController.createEmployee);
 router.put('/:id', requirePermission('employee.manage'), employeeController.updateEmployee);

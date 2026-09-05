@@ -202,6 +202,37 @@ async function getEmployeeById(req, res, next) {
 }
 
 /**
+ * Helper to compute the next unique sequential employee code (e.g. EMP001 -> EMP002).
+ */
+async function generateNextEmployeeCode(connectionOrPool) {
+  const [rows] = await connectionOrPool.query(
+    `SELECT employee_code FROM employees WHERE employee_code LIKE 'EMP%'`
+  );
+  let maxNum = 0;
+  for (const row of rows) {
+    const match = (row.employee_code || '').match(/^EMP(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+  const nextNum = maxNum + 1;
+  return `EMP${String(nextNum).padStart(3, '0')}`;
+}
+
+/**
+ * Endpoint to retrieve the next auto-generated unique employee code.
+ */
+async function getNextEmployeeCode(req, res, next) {
+  try {
+    const nextCode = await generateNextEmployeeCode(pool);
+    res.status(200).json({ data: { employee_code: nextCode } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Creates a new employee profile with optional linked user account, role assignment, and credential email.
  */
 async function createEmployee(req, res, next) {
@@ -227,8 +258,8 @@ async function createEmployee(req, res, next) {
       password
     } = req.body;
 
-    if (!employee_code || !first_name || !last_name || !email || !date_joined) {
-      return next(createValidationError('employee_code, first_name, last_name, email, and date_joined are required'));
+    if (!first_name || !last_name || !email || !date_joined) {
+      return next(createValidationError('first_name, last_name, email, and date_joined are required'));
     }
 
     if (first_name.trim().length < 2) {
@@ -261,6 +292,20 @@ async function createEmployee(req, res, next) {
 
     await connection.beginTransaction();
 
+    // Auto-generate or verify uniqueness of employee code
+    let finalCode = employee_code ? employee_code.trim() : '';
+    if (!finalCode) {
+      finalCode = await generateNextEmployeeCode(connection);
+    } else {
+      const [existingCode] = await connection.query(
+        'SELECT id FROM employees WHERE employee_code = ?',
+        [finalCode]
+      );
+      if (existingCode.length > 0) {
+        finalCode = await generateNextEmployeeCode(connection);
+      }
+    }
+
     const insertEmployeeSql = `
       INSERT INTO employees (
         employee_code, first_name, last_name, email, phone,
@@ -270,7 +315,7 @@ async function createEmployee(req, res, next) {
     `;
 
     const [empResult] = await connection.query(insertEmployeeSql, [
-      employee_code.trim(),
+      finalCode,
       first_name.trim(),
       last_name.trim(),
       email.trim(),
@@ -558,6 +603,7 @@ async function deleteEmployee(req, res, next) {
 
 module.exports = {
   listEmployees,
+  getNextEmployeeCode,
   getEmployeeById,
   createEmployee,
   updateEmployee,
