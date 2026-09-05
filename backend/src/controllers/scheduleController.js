@@ -57,7 +57,16 @@ async function listSchedules(req, res, next) {
       ORDER BY ws.id ASC
     `);
 
-    res.status(200).json({ data: schedules });
+    const [allLines] = await pool.query(
+      'SELECT id, schedule_id, day_of_week, start_time, end_time, break_minutes FROM schedule_lines ORDER BY FIELD(day_of_week, "mon","tue","wed","thu","fri","sat","sun")'
+    );
+
+    const schedulesWithLines = schedules.map((s) => ({
+      ...s,
+      lines: allLines.filter((l) => l.schedule_id === s.id)
+    }));
+
+    res.status(200).json({ data: schedulesWithLines });
   } catch (err) {
     next(err);
   }
