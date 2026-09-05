@@ -27,5 +27,7 @@ router.get('/roles', authController.listRoles);
 // Admin user management (requires 'user.manage' permission)
 router.post('/users', requirePermission('user.manage'), authController.createUser);
 router.get('/users', requirePermission('user.manage'), authController.listUsers);
+router.put('/users/:id', requirePermission('user.manage'), authController.updateUser);
+router.delete('/users/:id', requirePermission('user.manage'), authController.deleteUser);
 
 module.exports = router;
