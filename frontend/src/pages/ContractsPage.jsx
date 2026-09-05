@@ -116,6 +116,7 @@ export default function ContractsPage() {
 
   const handleOpenDelete = (contract) => {
     setSelectedContract(contract);
+    setDeleteError(null);
     setDeleteOpen(true);
   };
 
@@ -123,12 +124,15 @@ export default function ContractsPage() {
     if (!selectedContract) return;
     try {
       setDeleteLoading(true);
+      setDeleteError(null);
       await axiosClient.delete(`/contracts/${selectedContract.id}`);
       setDeleteOpen(false);
       setSelectedContract(null);
       fetchContracts();
     } catch (err) {
       console.error('Failed to delete contract:', err);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete contract. Please try again.';
+      setDeleteError(msg);
     } finally {
       setDeleteLoading(false);
     }
@@ -152,7 +156,7 @@ export default function ContractsPage() {
               className="flex items-center gap-2"
               onClick={handleCreate}
             >
-              <PlusIcon className="h-4 w-4" /> New Contract
+              <PlusIcon className="h-4 w-4" /> Create Contract
             </Button>
           )
         }
@@ -171,11 +175,15 @@ export default function ContractsPage() {
       {/* Delete Confirmation Modal */}
       <ConfirmDeleteModal
         open={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
         onConfirm={handleConfirmDelete}
         title="Delete Contract"
         itemName={selectedContract ? `contract for ${selectedContract.employee_name || 'Employee'}` : 'this contract'}
         loading={deleteLoading}
+        errorMessage={deleteError}
       />
     </div>
   );

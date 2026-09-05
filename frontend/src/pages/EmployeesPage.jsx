@@ -56,9 +56,10 @@ export default function EmployeesPage() {
   // Modals state
   const [formOpen, setFormOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     fetchAuxiliaryData();
@@ -149,6 +150,7 @@ export default function EmployeesPage() {
 
   const handleOpenDelete = (emp) => {
     setSelectedEmployee(emp);
+    setDeleteError(null);
     setDeleteOpen(true);
   };
 
@@ -156,12 +158,15 @@ export default function EmployeesPage() {
     if (!selectedEmployee) return;
     try {
       setDeleteLoading(true);
+      setDeleteError(null);
       await axiosClient.delete(`/employees/${selectedEmployee.id}`);
       setDeleteOpen(false);
       setSelectedEmployee(null);
       fetchEmployees();
     } catch (err) {
       console.error('Failed to delete employee:', err);
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete employee. Please try again.';
+      setDeleteError(msg);
     } finally {
       setDeleteLoading(false);
     }
@@ -282,11 +287,15 @@ export default function EmployeesPage() {
       {/* Delete Confirmation Modal */}
       <ConfirmDeleteModal
         open={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
+        onClose={() => {
+          setDeleteOpen(false);
+          setDeleteError(null);
+        }}
         onConfirm={handleConfirmDelete}
         title="Delete Employee"
         itemName={selectedEmployee ? `${selectedEmployee.first_name} ${selectedEmployee.last_name} (${selectedEmployee.employee_code})` : 'this employee'}
         loading={deleteLoading}
+        errorMessage={deleteError}
       />
     </div>
   );

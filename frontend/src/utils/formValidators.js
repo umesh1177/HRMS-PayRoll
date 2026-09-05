@@ -149,3 +149,22 @@ export function validatePayrun(scopeData) {
   }
   return errors;
 }
+
+/**
+ * Extracts a user-friendly error string from an axios response or error object.
+ * 
+ * @param {Error|object} err - Caught error object
+ * @param {string} [defaultMsg='An error occurred. Please check your entries and try again.'] - Fallback message
+ * @returns {string} User-friendly error message
+ */
+export function getErrorMessage(err, defaultMsg = 'An error occurred. Please check your entries and try again.') {
+  if (!err) return defaultMsg;
+  if (typeof err === 'string') return err;
+  if (err.response?.data?.error?.message) return err.response.data.error.message;
+  if (err.response?.data?.message) return err.response.data.message;
+  if (err.response?.data?.error && typeof err.response.data.error === 'string') return err.response.data.error;
+  if (err.message && !err.message.includes('status code') && !err.message.includes('Network Error') && !err.message.includes('ECONNREFUSED')) {
+    return err.message;
+  }
+  return defaultMsg;
+}
