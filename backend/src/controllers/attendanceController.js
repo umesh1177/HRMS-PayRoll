@@ -167,6 +167,70 @@ async function getCurrentStatus(req, res, next) {
 }
 
 /**
+ * Calculates working hours statistics for the authenticated employee:
+ * - today working hours
+ * - this week working hours
+ * - this month working hours
+ */
+async function getMyAttendanceStats(req, res, next) {
+  try {
+    const employeeId = req.user.employee_id;
+    if (!employeeId) {
+      return res.status(200).json({
+        data: {
+          today_hours: 0,
+          week_hours: 0,
+          month_hours: 0
+        }
+      });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT 
+        COALESCE(SUM(CASE WHEN DATE(check_in) = CURDATE() THEN worked_hours ELSE 0 END), 0) AS today_hours,
+        COALESCE(SUM(CASE WHEN YEARWEEK(check_in, 1) = YEARWEEK(CURDATE(), 1) THEN worked_hours ELSE 0 END), 0) AS week_hours,
+        COALESCE(SUM(CASE WHEN YEAR(check_in) = YEAR(CURDATE()) AND MONTH(check_in) = MONTH(CURDATE()) THEN worked_hours ELSE 0 END), 0) AS month_hours
+      FROM attendances 
+      WHERE employee_id = ?`,
+      [employeeId]
+    );
+
+    let todayHours = parseFloat(rows[0]?.today_hours || 0);
+    let weekHours = parseFloat(rows[0]?.week_hours || 0);
+    let monthHours = parseFloat(rows[0]?.month_hours || 0);
+
+    // If currently checked in (active session), add live elapsed hours
+    const [openPunch] = await pool.query(
+      'SELECT check_in FROM attendances WHERE employee_id = ? AND check_out IS NULL ORDER BY id DESC LIMIT 1',
+      [employeeId]
+    );
+
+    if (openPunch.length > 0) {
+      const checkInDate = new Date(openPunch[0].check_in);
+      const now = new Date();
+      const elapsedHours = Math.max(0, (now.getTime() - checkInDate.getTime()) / (1000 * 60 * 60));
+      
+      const isToday = checkInDate.toDateString() === now.toDateString();
+      if (isToday) {
+        todayHours += elapsedHours;
+      }
+      weekHours += elapsedHours;
+      monthHours += elapsedHours;
+    }
+
+    res.status(200).json({
+      data: {
+        today_hours: parseFloat(todayHours.toFixed(2)),
+        week_hours: parseFloat(weekHours.toFixed(2)),
+        month_hours: parseFloat(monthHours.toFixed(2))
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Lists attendance records with date filtering, employee filtering, and pagination.
  * Scoped by RBAC: 'attendance.manage_all' vs 'attendance.view_own'.
  */
@@ -533,6 +597,7 @@ module.exports = {
   checkIn,
   checkOut,
   getCurrentStatus,
+  getMyAttendanceStats,
   listAttendance,
   getEmployeeAttendanceSummary,
   manualEdit,

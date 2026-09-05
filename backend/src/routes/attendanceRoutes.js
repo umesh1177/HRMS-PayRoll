@@ -21,6 +21,7 @@ router.use(authenticateToken);
 router.post('/check-in', attendanceController.checkIn);
 router.post('/check-out', attendanceController.checkOut);
 router.get('/current', attendanceController.getCurrentStatus);
+router.get('/my-stats', attendanceController.getMyAttendanceStats);
 
 // Employee summary listing for Admin & HR management
 router.get('/employee-summary', attendanceController.getEmployeeAttendanceSummary);

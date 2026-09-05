@@ -44,18 +44,22 @@ export default function AttendanceList({
   const canManageAll = hasPermission('attendance.manage_all');
 
   const columns = [
-    {
-      key: 'employee_name',
-      label: 'Employee',
-      render: (row) => (
-        <div>
-          <p className="font-semibold text-sm text-blue-gray-800">{row.employee_name}</p>
-          <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
-            {row.employee_code}
-          </span>
-        </div>
-      )
-    },
+    ...(canManageAll
+      ? [
+          {
+            key: 'employee_name',
+            label: 'Employee',
+            render: (row) => (
+              <div>
+                <p className="font-semibold text-sm text-blue-gray-800">{row.employee_name}</p>
+                <span className="font-mono text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                  {row.employee_code}
+                </span>
+              </div>
+            )
+          }
+        ]
+      : []),
     {
       key: 'check_in',
       label: 'Check In',
@@ -120,38 +124,40 @@ export default function AttendanceList({
         )
       )
     },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        canManageAll && (
-          <div className="flex items-center gap-1">
-            <Tooltip content="Correct Record">
-              <IconButton
-                variant="text"
-                color="blue-gray"
-                size="sm"
-                onClick={() => onEdit(row)}
-              >
-                <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
-              </IconButton>
-            </Tooltip>
-            {onDelete && (
-              <Tooltip content="Delete Attendance">
-                <IconButton
-                  variant="text"
-                  color="red"
-                  size="sm"
-                  onClick={() => onDelete(row)}
-                >
-                  <TrashIcon className="h-4 w-4 text-red-500" />
-                </IconButton>
-              </Tooltip>
-            )}
-          </div>
-        )
-      )
-    }
+    ...(canManageAll
+      ? [
+          {
+            key: 'actions',
+            label: 'Actions',
+            render: (row) => (
+              <div className="flex items-center gap-1">
+                <Tooltip content="Correct Record">
+                  <IconButton
+                    variant="text"
+                    color="blue-gray"
+                    size="sm"
+                    onClick={() => onEdit(row)}
+                  >
+                    <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
+                  </IconButton>
+                </Tooltip>
+                {onDelete && (
+                  <Tooltip content="Delete Attendance">
+                    <IconButton
+                      variant="text"
+                      color="red"
+                      size="sm"
+                      onClick={() => onDelete(row)}
+                    >
+                      <TrashIcon className="h-4 w-4 text-red-500" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </div>
+            )
+          }
+        ]
+      : [])
   ];
 
   return (
