@@ -10,7 +10,9 @@
  * Issuing JWT credentials (handled by authController.js) or computing payslips (handled by payrollEngine.js).
  */
 
+const bcrypt = require('bcrypt');
 const pool = require('../config/db');
+const { sendWelcomeCredentialsEmail } = require('../services/emailService');
 const {
   isValidEmail,
   isValidPhone,
@@ -78,8 +80,7 @@ async function listEmployees(req, res, next) {
     const countSql = `SELECT COUNT(*) as total FROM employees e ${whereClause}`;
     const [[{ total }]] = await pool.query(countSql, queryParams);
 
-    // Main directory query with joined organizational relations
-    // Schema reference: employees -> departments, job_positions, working_schedules, self manager
+    // Main directory query with joined organizational relations and user role info
     const listSql = `
       SELECT 
         e.id,
@@ -102,12 +103,23 @@ async function listEmployees(req, res, next) {
         e.date_left,
         e.photo_url,
         e.created_at,
-        e.updated_at
+        e.updated_at,
+        u.id AS user_id,
+        u.role_id,
+        r.name AS primary_role_name,
+        (
+          SELECT JSON_ARRAYAGG(JSON_OBJECT('id', ro.id, 'name', ro.name))
+          FROM user_roles ur
+          JOIN roles ro ON ur.role_id = ro.id
+          WHERE ur.user_id = u.id
+        ) AS roles
       FROM employees e
       LEFT JOIN departments d ON e.department_id = d.id
       LEFT JOIN job_positions jp ON e.job_position_id = jp.id
       LEFT JOIN employees m ON e.manager_id = m.id
       LEFT JOIN working_schedules ws ON e.working_schedule_id = ws.id
+      LEFT JOIN users u ON u.employee_id = e.id
+      LEFT JOIN roles r ON u.role_id = r.id
       ${whereClause}
       ORDER BY e.id DESC
       LIMIT ? OFFSET ?
@@ -130,7 +142,7 @@ async function listEmployees(req, res, next) {
 }
 
 /**
- * Gets detailed profile for a single employee by ID.
+ * Gets detailed profile for a single employee by ID with user roles.
  */
 async function getEmployeeById(req, res, next) {
   try {
@@ -172,12 +184,21 @@ async function getEmployeeById(req, res, next) {
         e.date_left,
         e.photo_url,
         e.created_at,
-        e.updated_at
+        e.updated_at,
+        u.id AS user_id,
+        u.role_id,
+        (
+          SELECT JSON_ARRAYAGG(JSON_OBJECT('id', ro.id, 'name', ro.name))
+          FROM user_roles ur
+          JOIN roles ro ON ur.role_id = ro.id
+          WHERE ur.user_id = u.id
+        ) AS roles
       FROM employees e
       LEFT JOIN departments d ON e.department_id = d.id
       LEFT JOIN job_positions jp ON e.job_position_id = jp.id
       LEFT JOIN employees m ON e.manager_id = m.id
       LEFT JOIN working_schedules ws ON e.working_schedule_id = ws.id
+      LEFT JOIN users u ON u.employee_id = e.id
       WHERE e.id = ?
       LIMIT 1
     `;
@@ -197,9 +218,41 @@ async function getEmployeeById(req, res, next) {
 }
 
 /**
- * Creates a new employee profile.
+ * Helper to compute the next unique sequential employee code (e.g. EMP001 -> EMP002).
+ */
+async function generateNextEmployeeCode(connectionOrPool) {
+  const [rows] = await connectionOrPool.query(
+    `SELECT employee_code FROM employees WHERE employee_code LIKE 'EMP%'`
+  );
+  let maxNum = 0;
+  for (const row of rows) {
+    const match = (row.employee_code || '').match(/^EMP(\d+)$/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum) maxNum = num;
+    }
+  }
+  const nextNum = maxNum + 1;
+  return `EMP${String(nextNum).padStart(3, '0')}`;
+}
+
+/**
+ * Endpoint to retrieve the next auto-generated unique employee code.
+ */
+async function getNextEmployeeCode(req, res, next) {
+  try {
+    const nextCode = await generateNextEmployeeCode(pool);
+    res.status(200).json({ data: { employee_code: nextCode } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Creates a new employee profile with optional linked user account, role assignment, and credential email.
  */
 async function createEmployee(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const {
       employee_code,
@@ -214,11 +267,15 @@ async function createEmployee(req, res, next) {
       status,
       date_joined,
       date_left,
-      photo_url
+      photo_url,
+      create_user = true,
+      role_ids = [],
+      role_id,
+      password
     } = req.body;
 
-    if (!employee_code || !first_name || !last_name || !email || !date_joined) {
-      return next(createValidationError('employee_code, first_name, last_name, email, and date_joined are required'));
+    if (!first_name || !last_name || !email || !date_joined) {
+      return next(createValidationError('first_name, last_name, email, and date_joined are required'));
     }
 
     if (first_name.trim().length < 2) {
@@ -249,7 +306,23 @@ async function createEmployee(req, res, next) {
       return next(createValidationError('Invalid status. Allowed: active, inactive, terminated, suspended', 'status'));
     }
 
-    const insertSql = `
+    await connection.beginTransaction();
+
+    // Auto-generate or verify uniqueness of employee code
+    let finalCode = employee_code ? employee_code.trim() : '';
+    if (!finalCode) {
+      finalCode = await generateNextEmployeeCode(connection);
+    } else {
+      const [existingCode] = await connection.query(
+        'SELECT id FROM employees WHERE employee_code = ?',
+        [finalCode]
+      );
+      if (existingCode.length > 0) {
+        finalCode = await generateNextEmployeeCode(connection);
+      }
+    }
+
+    const insertEmployeeSql = `
       INSERT INTO employees (
         employee_code, first_name, last_name, email, phone,
         department_id, job_position_id, manager_id, working_schedule_id,
@@ -257,11 +330,11 @@ async function createEmployee(req, res, next) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    const [result] = await pool.query(insertSql, [
-      employee_code,
-      first_name,
-      last_name,
-      email,
+    const [empResult] = await connection.query(insertEmployeeSql, [
+      finalCode,
+      first_name.trim(),
+      last_name.trim(),
+      email.trim(),
       phone || null,
       department_id || null,
       job_position_id || null,
@@ -273,32 +346,106 @@ async function createEmployee(req, res, next) {
       photo_url || null
     ]);
 
+    const newEmployeeId = empResult.insertId;
+
+    let assignedRoleIds = [];
+    if (Array.isArray(role_ids) && role_ids.length > 0) {
+      assignedRoleIds = role_ids.map((r) => Number(r)).filter((r) => !isNaN(r) && r > 0);
+    } else if (role_id) {
+      assignedRoleIds = [Number(role_id)];
+    }
+
+    if (assignedRoleIds.length === 0) {
+      const [empRole] = await connection.query("SELECT id FROM roles WHERE name = 'Employee' LIMIT 1");
+      if (empRole.length > 0) {
+        assignedRoleIds = [empRole[0].id];
+      } else {
+        const [anyRole] = await connection.query('SELECT id FROM roles ORDER BY id ASC LIMIT 1');
+        if (anyRole.length > 0) assignedRoleIds = [anyRole[0].id];
+      }
+    }
+
+    const rawPassword = password && password.trim() ? password.trim() : `${first_name.trim()}@123`;
+    const primaryRoleId = assignedRoleIds[0];
+    let createdUserId = null;
+
+    if (create_user !== false) {
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(rawPassword, salt);
+
+      const [userResult] = await connection.query(
+        `INSERT INTO users (employee_id, email, password_hash, role_id, status)
+         VALUES (?, ?, ?, ?, 'active')`,
+        [newEmployeeId, email.trim(), passwordHash, primaryRoleId]
+      );
+      createdUserId = userResult.insertId;
+
+      for (const rId of assignedRoleIds) {
+        await connection.query(
+          `INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)`,
+          [createdUserId, rId]
+        );
+      }
+    }
+
+    await connection.commit();
+
+    let roleNames = ['Employee'];
+    try {
+      if (assignedRoleIds.length > 0) {
+        const [rolesData] = await pool.query(
+          `SELECT name FROM roles WHERE id IN (?)`,
+          [assignedRoleIds]
+        );
+        if (rolesData.length > 0) {
+          roleNames = rolesData.map((r) => r.name);
+        }
+      }
+    } catch { }
+
+    sendWelcomeCredentialsEmail({
+      to: email.trim(),
+      name: `${first_name.trim()} ${last_name.trim()}`,
+      email: email.trim(),
+      password: rawPassword,
+      roleNames
+    }).catch((emailErr) => {
+      console.warn('Failed to deliver welcome credentials email:', emailErr);
+    });
+
     res.status(201).json({
-      message: 'Employee created successfully',
+      message: 'Employee created and welcome credentials email dispatched successfully',
       data: {
-        id: result.insertId,
+        id: newEmployeeId,
         employee_code,
         first_name,
         last_name,
         email,
-        status: status || 'active'
+        status: status || 'active',
+        user_id: createdUserId,
+        role_ids: assignedRoleIds,
+        role_names: roleNames
       }
     });
   } catch (err) {
+    await connection.rollback();
     if (err.code === 'ER_DUP_ENTRY') {
-      const error = new Error(`Employee with code '${req.body.employee_code}' or email '${req.body.email}' already exists`);
+      const error = new Error(`Employee with code '${req.body.employee_code}' or email '${req.body.email}' already exists.`);
       error.status = 409;
       error.code = 'DUPLICATE_ENTRY';
       return next(error);
     }
     next(err);
+  } finally {
+    connection.release();
   }
 }
 
 /**
- * Updates an employee profile.
+ * Updates an employee profile and synchronizes linked user roles.
  */
 async function updateEmployee(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
     const {
@@ -314,10 +461,13 @@ async function updateEmployee(req, res, next) {
       status,
       date_joined,
       date_left,
-      photo_url
+      photo_url,
+      role_ids,
+      role_id,
+      password
     } = req.body;
 
-    const [existing] = await pool.query('SELECT id FROM employees WHERE id = ?', [id]);
+    const [existing] = await connection.query('SELECT id, email FROM employees WHERE id = ?', [id]);
     if (existing.length === 0) {
       const error = new Error(`Employee with ID ${id} not found`);
       error.status = 404;
@@ -348,6 +498,8 @@ async function updateEmployee(req, res, next) {
       }
     }
 
+    await connection.beginTransaction();
+
     const updateSql = `
       UPDATE employees SET
         employee_code = COALESCE(?, employee_code),
@@ -366,7 +518,7 @@ async function updateEmployee(req, res, next) {
       WHERE id = ?
     `;
 
-    await pool.query(updateSql, [
+    await connection.query(updateSql, [
       employee_code,
       first_name,
       last_name,
@@ -383,9 +535,43 @@ async function updateEmployee(req, res, next) {
       id
     ]);
 
-    res.status(200).json({ message: 'Employee updated successfully' });
+    let assignedRoleIds = null;
+    if (Array.isArray(role_ids)) {
+      assignedRoleIds = role_ids.map((r) => Number(r)).filter((r) => !isNaN(r) && r > 0);
+    } else if (role_id) {
+      assignedRoleIds = [Number(role_id)];
+    }
+
+    const [userRows] = await connection.query('SELECT id FROM users WHERE employee_id = ?', [id]);
+    if (userRows.length > 0) {
+      const userId = userRows[0].id;
+      
+      if (email) {
+        await connection.query('UPDATE users SET email = ? WHERE id = ?', [email.trim(), userId]);
+      }
+
+      if (password && password.trim()) {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password.trim(), salt);
+        await connection.query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, userId]);
+      }
+
+      if (assignedRoleIds && assignedRoleIds.length > 0) {
+        await connection.query('UPDATE users SET role_id = ? WHERE id = ?', [assignedRoleIds[0], userId]);
+        await connection.query('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+        for (const rId of assignedRoleIds) {
+          await connection.query('INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, rId]);
+        }
+      }
+    }
+
+    await connection.commit();
+    res.status(200).json({ message: 'Employee and user account updated successfully' });
   } catch (err) {
+    await connection.rollback();
     next(err);
+  } finally {
+    connection.release();
   }
 }
 
@@ -456,6 +642,7 @@ async function deleteEmployee(req, res, next) {
 
 module.exports = {
   listEmployees,
+  getNextEmployeeCode,
   getEmployeeById,
   createEmployee,
   updateEmployee,

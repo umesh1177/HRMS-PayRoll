@@ -3,93 +3,162 @@
  * 
  * RESPONSIBILITY:
  * Displays application user accounts, linked employee profiles, and assigned RBAC roles.
- * 
- * NOT RESPONSIBLE FOR:
- * Modifying raw SQL schema permissions directly.
+ * Provides user account creation, multi-role editing, and account deletion.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DataTable from '../components/common/DataTable';
-import { Button, Chip, Input, Alert, Typography } from '@material-tailwind/react';
-import { UserPlusIcon } from '@heroicons/react/24/outline';
+import { Button, Chip, IconButton, Tooltip } from '@material-tailwind/react';
+import { UserPlusIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import axiosClient from '../api/axiosClient';
-import Modal from '../components/common/Modal';
+import UserForm from '../components/users/UserForm';
+import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
+import { useAuth } from '../context/AuthContext';
 
 export default function UserManagementPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [temporaryPassword, setTemporaryPassword] = useState('');
-  const [formData, setFormData] = useState({ email: '', role_id: '', employee_id: '', status: 'active', password: '' });
+  const [loading, setLoading] = useState(true);
 
-  const fetchUsers = async () => {
+  // Form Modal state
+  const [formOpen, setFormOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  // Delete Modal state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const res = await axiosClient.get('/auth/users');
-      setUsers(res.data?.data || []);
+      if (res.data?.data) {
+        setUsers(res.data.data);
+      }
     } catch (err) {
       console.error('Failed to load users:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const fetchDependencies = useCallback(async () => {
+    try {
+      const [rolesRes, empsRes] = await Promise.all([
+        axiosClient.get('/auth/roles'),
+        axiosClient.get('/employees?limit=200')
+      ]);
+
+      if (rolesRes.data?.data) {
+        setRoles(rolesRes.data.data);
+      }
+      if (empsRes.data?.data) {
+        setEmployees(empsRes.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load roles or employees:', err);
+    }
+  }, []);
 
   useEffect(() => {
     fetchUsers();
-    axiosClient.get('/auth/roles').then((res) => {
-      const availableRoles = res.data?.data || [];
-      setRoles(availableRoles);
-      if (availableRoles[0]) setFormData((previous) => ({ ...previous, role_id: String(availableRoles[0].id) }));
-    }).catch(() => setRoles([]));
-    axiosClient.get('/employees?limit=100').then((res) => setEmployees(res.data?.data || [])).catch(() => setEmployees([]));
-  }, []);
+    fetchDependencies();
+  }, [fetchUsers, fetchDependencies]);
 
-  const handleCreate = async (event) => {
-    event.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-    setSubmitting(true);
+  const handleOpenCreate = () => {
+    setSelectedUser(null);
+    setFormOpen(true);
+  };
+
+  const handleOpenEdit = (user) => {
+    setSelectedUser(user);
+    setFormOpen(true);
+  };
+
+  const handleOpenDelete = (user) => {
+    setUserToDelete(user);
+    setDeleteError('');
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
     try {
-      const payload = {
-        email: formData.email,
-        role_id: Number(formData.role_id),
-        employee_id: formData.employee_id ? Number(formData.employee_id) : undefined,
-        status: formData.status
-      };
-      if (formData.password) payload.password = formData.password;
-      const res = await axiosClient.post('/auth/users', payload);
-      const created = res.data?.data || {};
-      setCreateOpen(false);
-      setFormData({ email: '', role_id: roles[0] ? String(roles[0].id) : '', employee_id: '', status: 'active', password: '' });
-      if (created.must_change_password && created.temporary_password) {
-        setTemporaryPassword(created.temporary_password);
-      } else {
-        setSuccessMessage('User account created successfully.');
-      }
+      setDeleting(true);
+      setDeleteError('');
+      await axiosClient.delete(`/auth/users/${userToDelete.id}`);
+      setDeleteOpen(false);
+      setUserToDelete(null);
       fetchUsers();
     } catch (err) {
-      setErrorMessage(err.response?.data?.error?.message || 'Failed to create user account.');
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete user account.';
+      setDeleteError(msg);
     } finally {
-      setSubmitting(false);
+      setDeleting(false);
     }
   };
 
   const columns = [
-    { key: 'email', label: 'Email' },
-    { key: 'employee_name', label: 'Linked Employee' },
     {
-      key: 'role_name',
-      label: 'Role',
+      key: 'email',
+      label: 'Email',
       render: (row) => (
-        <span className="font-semibold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full uppercase">
-          {row.role_name || row.role}
+        <div className="flex flex-col">
+          <span className="font-semibold text-blue-gray-800 text-xs flex items-center gap-1.5">
+            {row.email}
+            {currentUser?.id === row.id && (
+              <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">
+                You
+              </span>
+            )}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'employee_name',
+      label: 'Linked Employee',
+      render: (row) => (
+        <span className="text-xs text-blue-gray-700">
+          {row.employee_name ? (
+            <span className="font-medium text-indigo-900">{row.employee_name}</span>
+          ) : (
+            <span className="text-blue-gray-400 italic">No linked profile</span>
+          )}
         </span>
       )
+    },
+    {
+      key: 'roles',
+      label: 'Assigned Roles',
+      render: (row) => {
+        const assignedRoles = row.roles && Array.isArray(row.roles) && row.roles.length > 0
+          ? row.roles
+          : row.role_name
+            ? [{ id: row.role_id, name: row.role_name }]
+            : [];
+
+        if (assignedRoles.length === 0) {
+          return <span className="text-xs text-blue-gray-400">None</span>;
+        }
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {assignedRoles.map((r, idx) => (
+              <span
+                key={r.id || idx}
+                className="font-semibold text-[10px] tracking-wide text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md uppercase shadow-xs"
+              >
+                {r.name || r}
+              </span>
+            ))}
+          </div>
+        );
+      }
     },
     {
       key: 'status',
@@ -104,80 +173,80 @@ export default function UserManagementPage() {
         />
       )
     },
-    { key: 'last_login_at', label: 'Last Login' }
+    {
+      key: 'last_login_at',
+      label: 'Last Login',
+      render: (row) => (
+        <span className="text-xs text-blue-gray-500">
+          {row.last_login_at ? new Date(row.last_login_at).toLocaleString() : 'Never'}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-1">
+          <Tooltip content="Edit Roles & User">
+            <IconButton
+              variant="text"
+              color="indigo"
+              size="sm"
+              onClick={() => handleOpenEdit(row)}
+            >
+              <PencilSquareIcon className="h-4 w-4" />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip content={currentUser?.id === row.id ? 'Cannot delete your own account' : 'Delete User'}>
+            <span>
+              <IconButton
+                variant="text"
+                color="red"
+                size="sm"
+                disabled={currentUser?.id === row.id}
+                onClick={() => handleOpenDelete(row)}
+              >
+                <TrashIcon className="h-4 w-4" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </div>
+      )
+    }
   ];
 
   return (
     <div className="mt-6">
       <DataTable
         title="User & Access Accounts"
-        subtitle="Manage user credentials, linked employee profiles, and role assignments"
+        subtitle="Manage user credentials, linked employee profiles, and multi-role RBAC assignments"
         columns={columns}
         data={users}
         loading={loading}
-        actionButton={
-          <Button color="indigo" size="sm" className="flex items-center gap-2" onClick={() => { setErrorMessage(''); setCreateOpen(true); }}>
-            <UserPlusIcon className="h-4 w-4" /> Create User
-          </Button>
-        }
       />
 
-      <Modal
-        open={createOpen}
-        onClose={() => !submitting && setCreateOpen(false)}
-        title="Create User Account"
-        size="md"
-        footer={(
-          <>
-            <Button variant="text" color="blue-gray" onClick={() => setCreateOpen(false)} disabled={submitting}>Cancel</Button>
-            <Button color="indigo" onClick={handleCreate} disabled={submitting}>{submitting ? 'Creating...' : 'Create User'}</Button>
-          </>
-        )}
-      >
-        <form onSubmit={handleCreate} className="flex flex-col gap-4">
-          {errorMessage && <Alert color="red" variant="gradient">{errorMessage}</Alert>}
-          <Input label="Email *" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required />
-          <div>
-            <Typography variant="small" color="blue-gray" className="mb-1 font-semibold">Role *</Typography>
-            <select value={formData.role_id} onChange={(e) => setFormData({ ...formData, role_id: e.target.value })} className="h-10 w-full rounded-md border border-blue-gray-200 px-3 text-sm" required>
-              <option value="" disabled>Select role</option>
-              {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <Typography variant="small" color="blue-gray" className="mb-1 font-semibold">Link Employee (optional)</Typography>
-            <select value={formData.employee_id} onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })} className="h-10 w-full rounded-md border border-blue-gray-200 px-3 text-sm">
-              <option value="">No linked employee</option>
-              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name || `${employee.first_name} ${employee.last_name}`} ({employee.employee_code})</option>)}
-            </select>
-          </div>
-          <div>
-            <Typography variant="small" color="blue-gray" className="mb-1 font-semibold">Status</Typography>
-            <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="h-10 w-full rounded-md border border-blue-gray-200 px-3 text-sm">
-              <option value="active">Active</option><option value="disabled">Disabled</option>
-            </select>
-          </div>
-          <Input label="Password (optional)" type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
-          <p className="-mt-2 text-xs text-blue-gray-500">Leave blank to auto-generate a temporary password.</p>
-        </form>
-      </Modal>
+      {/* User Edit Roles Modal */}
+      <UserForm
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        user={selectedUser}
+        roles={roles}
+        employees={employees}
+        onSuccess={fetchUsers}
+      />
 
-      <Modal
-        open={Boolean(temporaryPassword)}
-        onClose={() => setTemporaryPassword('')}
-        title="Temporary Password"
-        size="md"
-        footer={<Button color="indigo" onClick={() => setTemporaryPassword('')}>I have saved this password</Button>}
-      >
-        <div className="flex flex-col gap-4">
-          <Alert color="amber" variant="ghost">This password will never be shown again. Relay it securely to the employee and ask them to change it at first login.</Alert>
-          <div className="flex gap-2">
-            <Input value={temporaryPassword} readOnly label="Temporary password" />
-            <Button variant="outlined" onClick={() => navigator.clipboard?.writeText(temporaryPassword)}>Copy</Button>
-          </div>
-        </div>
-      </Modal>
-      {successMessage && <Alert color="green" className="mt-4">{successMessage}</Alert>}
+      {/* User Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete User Account"
+        itemName={userToDelete?.email || 'this user'}
+        errorMessage={deleteError}
+        loading={deleting}
+      />
     </div>
   );
 }
+
