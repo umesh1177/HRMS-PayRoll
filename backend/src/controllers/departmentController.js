@@ -180,9 +180,15 @@ async function listJobPositions(req, res, next) {
   try {
     const { department_id } = req.query;
     let query = `
-      SELECT jp.id, jp.title, jp.department_id, d.name AS department_name
+      SELECT 
+        jp.id, 
+        jp.title, 
+        jp.department_id, 
+        d.name AS department_name,
+        COUNT(emp.id) AS employee_count
       FROM job_positions jp
       JOIN departments d ON jp.department_id = d.id
+      LEFT JOIN employees emp ON emp.job_position_id = jp.id
     `;
     const params = [];
 
@@ -190,7 +196,7 @@ async function listJobPositions(req, res, next) {
       query += ' WHERE jp.department_id = ?';
       params.push(department_id);
     }
-    query += ' ORDER BY jp.title ASC';
+    query += ' GROUP BY jp.id ORDER BY jp.title ASC';
 
     const [rows] = await pool.query(query, params);
     res.status(200).json({ data: rows });

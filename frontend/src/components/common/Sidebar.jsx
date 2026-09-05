@@ -1,35 +1,24 @@
 /**
  * Main Application Sidebar Navigation
  * 
- * THEME ORIGIN:
- * Adapted from Material Tailwind Dashboard React's `src/widgets/layout/sidenav.jsx`.
- * 
- * CHANGES & REMOVALS:
- * Removed demo pages (demo tables, typography, notifications demo, RTL) and replaced with
- * PeoplePay360 domain navigation structure. Added role-based menu filtering based on user permissions.
- * 
  * RESPONSIBILITY:
  * Renders persistent left navigation sidebar with links to all PeoplePay360 functional modules.
- * 
- * NOT RESPONSIBLE FOR:
- * Route resolution or page content rendering.
+ * Includes direct access to Organization settings (Departments, Job Roles, Contract Types, Schedules),
+ * Employees, Contracts, Payroll Hub, Attendance, Time Off, and User Management.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   HomeIcon,
   UserGroupIcon,
+  BuildingOffice2Icon,
   DocumentTextIcon,
   CalendarDaysIcon,
   ClockIcon,
   CalendarIcon,
   BanknotesIcon,
-  CalculatorIcon,
-  TableCellsIcon,
-  ReceiptPercentIcon,
-  UsersIcon,
-  ChevronDownIcon
+  UsersIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 
@@ -43,7 +32,6 @@ import { useAuth } from '../../context/AuthContext';
  */
 export default function Sidebar({ isOpen = true, onClose }) {
   const { hasPermission, user } = useAuth();
-  const [payrollMenuOpen, setPayrollMenuOpen] = useState(true);
 
   // Define navigation groups matching PeoplePay360 domain modules
   const navItems = [
@@ -58,6 +46,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
       path: '/employees',
       icon: UserGroupIcon,
       show: hasPermission('employee.view_all')
+    },
+    {
+      name: 'Organization & Structure',
+      path: '/organization',
+      icon: BuildingOffice2Icon,
+      show: hasPermission('employee.manage') || hasPermission('user.manage')
     },
     {
       name: 'Contracts',
@@ -82,37 +76,23 @@ export default function Sidebar({ isOpen = true, onClose }) {
       path: '/timeoff',
       icon: CalendarIcon,
       show: hasPermission('timeoff.view_own') || hasPermission('timeoff.approve')
-    }
-  ];
-
-  const payrollSubItems = [
+    },
     {
-      name: 'Payruns',
-      path: '/payroll/payruns',
+      name: 'Payroll & Payruns',
+      path: '/payroll',
       icon: BanknotesIcon,
-      show: hasPermission('payroll.payrun.manage')
+      show:
+        hasPermission('payroll.payrun.manage') ||
+        hasPermission('payroll.payslip.view') ||
+        hasPermission('payroll.structure.view')
     },
     {
-      name: 'Payslips',
-      path: '/payroll/payslips',
-      icon: TableCellsIcon,
-      show: hasPermission('payroll.payslip.view')
-    },
-    {
-      name: 'Salary Structures',
-      path: '/payroll/structures',
-      icon: CalculatorIcon,
-      show: hasPermission('payroll.structure.view')
-    },
-    {
-      name: 'Salary Rules',
-      path: '/payroll/rules',
-      icon: ReceiptPercentIcon,
-      show: hasPermission('payroll.structure.view')
+      name: 'User Management',
+      path: '/users',
+      icon: UsersIcon,
+      show: hasPermission('user.manage')
     }
   ];
-
-  const showPayrollSection = payrollSubItems.some((item) => item.show);
 
   return (
     <aside
@@ -144,80 +124,18 @@ export default function Sidebar({ isOpen = true, onClose }) {
                   to={item.path}
                   onClick={onClose}
                   className={({ isActive }) =>
-                    `flex items-center gap-4 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
+                    `flex items-center gap-3.5 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
                       isActive
                         ? 'bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white shadow-md shadow-indigo-500/20'
                         : 'text-blue-gray-200 hover:bg-white/10 hover:text-white'
                     }`
                   }
                 >
-                  <Icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{item.name}</span>
                 </NavLink>
               );
             })}
-
-          {/* Payroll Section Accordion */}
-          {showPayrollSection && (
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setPayrollMenuOpen(!payrollMenuOpen)}
-                className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold uppercase tracking-wider text-blue-gray-400 hover:text-white"
-              >
-                <span>Payroll</span>
-                <ChevronDownIcon
-                  className={`h-4 w-4 transition-transform ${payrollMenuOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {payrollMenuOpen && (
-                <div className="pl-2 space-y-1">
-                  {payrollSubItems
-                    .filter((item) => item.show)
-                    .map((subItem) => {
-                      const SubIcon = subItem.icon;
-                      return (
-                        <NavLink
-                          key={subItem.path}
-                          to={subItem.path}
-                          onClick={onClose}
-                          className={({ isActive }) =>
-                            `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200 ${
-                              isActive
-                                ? 'bg-white/20 text-white font-semibold'
-                                : 'text-blue-gray-300 hover:bg-white/10 hover:text-white'
-                            }`
-                          }
-                        >
-                          <SubIcon className="h-4 w-4" />
-                          <span>{subItem.name}</span>
-                        </NavLink>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* User Management for Admins */}
-          {hasPermission('user.manage') && (
-            <div className="pt-2">
-              <NavLink
-                to="/users"
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `flex items-center gap-4 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
-                    isActive
-                      ? 'bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white shadow-md shadow-indigo-500/20'
-                      : 'text-blue-gray-200 hover:bg-white/10 hover:text-white'
-                  }`
-                }
-              >
-                <UsersIcon className="h-5 w-5" />
-                <span>User Management</span>
-              </NavLink>
-            </div>
-          )}
         </div>
       </div>
 
@@ -234,3 +152,4 @@ export default function Sidebar({ isOpen = true, onClose }) {
     </aside>
   );
 }
+
