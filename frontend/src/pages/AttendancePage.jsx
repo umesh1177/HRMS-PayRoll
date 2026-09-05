@@ -43,7 +43,6 @@ import Modal from '../components/common/Modal';
 import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
-import mockAttendances from '../api/mocks/attendances.json';
 import {
   formatTime,
   formatDateTime,
@@ -53,7 +52,7 @@ import {
 
 export default function AttendancePage() {
   const { hasPermission, user } = useAuth();
-  const canManageAll = hasPermission('attendance.manage_all');
+  const isAdmin = user?.role === 'Admin' || user?.role_name === 'Admin' || user?.role_id === 1 || (user?.roles && user.roles.some(r => r.name === 'Admin' || r.id === 1));
 
   // Employee-centric directory state (Admin View)
   const [employeesSummary, setEmployeesSummary] = useState([]);
@@ -94,7 +93,7 @@ export default function AttendancePage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
-  // Self-service employee logs (for regular non-admin employees)
+  // Self-service employee logs (for all logins except Admin)
   const [selfRecords, setSelfRecords] = useState([]);
   const [selfLoading, setSelfLoading] = useState(false);
   const [attendanceStats, setAttendanceStats] = useState({
@@ -105,17 +104,14 @@ export default function AttendancePage() {
   const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
-    fetchFilterOptions();
-  }, []);
-
-  useEffect(() => {
-    if (canManageAll) {
+    if (isAdmin) {
+      fetchFilterOptions();
       fetchEmployeeSummaries();
     } else {
       fetchSelfAttendance();
       fetchAttendanceStats();
     }
-  }, [canManageAll, page, search, selectedRole, selectedDepartment, filterDate]);
+  }, [isAdmin, page, search, selectedRole, selectedDepartment, filterDate]);
 
   const fetchAttendanceStats = async () => {
     setStatsLoading(true);
@@ -123,9 +119,12 @@ export default function AttendancePage() {
       const res = await axiosClient.get('/attendance/my-stats');
       if (res.data?.data) {
         setAttendanceStats(res.data.data);
+      } else {
+        setAttendanceStats({ today_hours: 0, week_hours: 0, month_hours: 0 });
       }
     } catch (err) {
       console.warn('Could not fetch personal attendance stats:', err);
+      setAttendanceStats({ today_hours: 0, week_hours: 0, month_hours: 0 });
     } finally {
       setStatsLoading(false);
     }
@@ -168,7 +167,7 @@ export default function AttendancePage() {
         setTotalEmployees(0);
       }
     } catch (err) {
-      console.warn('Backend unavailable, falling back to mock directory data.', err);
+      console.warn('Could not load employee summaries:', err);
       setEmployeesSummary([]);
       setTotalPages(1);
     } finally {
@@ -179,16 +178,17 @@ export default function AttendancePage() {
   const fetchSelfAttendance = async () => {
     setSelfLoading(true);
     try {
-      const res = await axiosClient.get(`/attendance?page=${page}&limit=10`);
+      const res = await axiosClient.get(`/attendance?self=true&page=${page}&limit=10`);
       if (res.data?.data) {
         setSelfRecords(res.data.data);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
-        setSelfRecords(mockAttendances);
+        setSelfRecords([]);
         setTotalPages(1);
       }
     } catch (err) {
-      setSelfRecords(mockAttendances);
+      console.warn('Failed to fetch personal attendance records:', err);
+      setSelfRecords([]);
       setTotalPages(1);
     } finally {
       setSelfLoading(false);
@@ -229,10 +229,11 @@ export default function AttendancePage() {
     try {
       await axiosClient.put(`/attendance/${selectedRecord.id}`, editForm);
       setEditModalOpen(false);
-      if (canManageAll) {
+      if (isAdmin) {
         fetchEmployeeSummaries();
       } else {
         fetchSelfAttendance();
+        fetchAttendanceStats();
       }
     } catch (err) {
       const msg = err.response?.data?.error?.message || 'Failed to correct attendance record.';
@@ -256,10 +257,11 @@ export default function AttendancePage() {
       await axiosClient.delete(`/attendance/${recordToDelete.id}`);
       setDeleteOpen(false);
       setRecordToDelete(null);
-      if (canManageAll) {
+      if (isAdmin) {
         fetchEmployeeSummaries();
       } else {
         fetchSelfAttendance();
+        fetchAttendanceStats();
       }
     } catch (err) {
       setDeleteError(err.response?.data?.message || 'Failed to delete attendance record.');
@@ -268,8 +270,8 @@ export default function AttendancePage() {
     }
   };
 
-  // If user is a regular employee without manage_all permissions, render self-service punch, KPI cards & logs
-  if (!canManageAll) {
+  // For all logins except Admin: render real calculated KPI cards, punch clock & personal logs
+  if (!isAdmin) {
     const employeeKpis = [
       {
         title: 'Today Working Hours',

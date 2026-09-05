@@ -19,6 +19,20 @@ const {
 } = require('../utils/validators');
 
 /**
+ * Helper to resolve employee_id from user object or database lookup
+ */
+async function resolveEmployeeId(user) {
+  if (!user) return null;
+  if (user.employee_id) return user.employee_id;
+  if (!user.id && !user.email) return null;
+  const [emp] = await pool.query(
+    'SELECT id FROM employees WHERE user_id = ? OR email = ? LIMIT 1',
+    [user.id, user.email]
+  );
+  return emp.length > 0 ? emp[0].id : null;
+}
+
+/**
  * Self-service Check-In for the authenticated employee.
  * Resolves employee_id from req.user.
  * 
@@ -29,7 +43,7 @@ const {
  */
 async function checkIn(req, res, next) {
   try {
-    const employeeId = req.user.employee_id;
+    const employeeId = await resolveEmployeeId(req.user);
     if (!employeeId) {
       const error = new Error('No employee profile linked to current user account');
       error.status = 400;
@@ -83,7 +97,7 @@ async function checkIn(req, res, next) {
  */
 async function checkOut(req, res, next) {
   try {
-    const employeeId = req.user.employee_id;
+    const employeeId = await resolveEmployeeId(req.user);
     if (!employeeId) {
       const error = new Error('No employee profile linked to current user account');
       error.status = 400;
@@ -136,7 +150,7 @@ async function checkOut(req, res, next) {
  */
 async function getCurrentStatus(req, res, next) {
   try {
-    const employeeId = req.user.employee_id;
+    const employeeId = await resolveEmployeeId(req.user);
     if (!employeeId) {
       return res.status(200).json({ data: { isCheckedIn: false, activeSession: null } });
     }
@@ -174,7 +188,7 @@ async function getCurrentStatus(req, res, next) {
  */
 async function getMyAttendanceStats(req, res, next) {
   try {
-    const employeeId = req.user.employee_id;
+    const employeeId = await resolveEmployeeId(req.user);
     if (!employeeId) {
       return res.status(200).json({
         data: {
@@ -187,9 +201,9 @@ async function getMyAttendanceStats(req, res, next) {
 
     const [rows] = await pool.query(
       `SELECT 
-        COALESCE(SUM(CASE WHEN DATE(check_in) = CURDATE() THEN worked_hours ELSE 0 END), 0) AS today_hours,
-        COALESCE(SUM(CASE WHEN YEARWEEK(check_in, 1) = YEARWEEK(CURDATE(), 1) THEN worked_hours ELSE 0 END), 0) AS week_hours,
-        COALESCE(SUM(CASE WHEN YEAR(check_in) = YEAR(CURDATE()) AND MONTH(check_in) = MONTH(CURDATE()) THEN worked_hours ELSE 0 END), 0) AS month_hours
+        COALESCE(SUM(CASE WHEN DATE(check_in) = CURDATE() THEN COALESCE(worked_hours, 0) ELSE 0 END), 0) AS today_hours,
+        COALESCE(SUM(CASE WHEN YEARWEEK(check_in, 1) = YEARWEEK(CURDATE(), 1) THEN COALESCE(worked_hours, 0) ELSE 0 END), 0) AS week_hours,
+        COALESCE(SUM(CASE WHEN YEAR(check_in) = YEAR(CURDATE()) AND MONTH(check_in) = MONTH(CURDATE()) THEN COALESCE(worked_hours, 0) ELSE 0 END), 0) AS month_hours
       FROM attendances 
       WHERE employee_id = ?`,
       [employeeId]
@@ -240,29 +254,29 @@ async function listAttendance(req, res, next) {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const offset = (page - 1) * limit;
 
-    const { employee_id, from, to, status } = req.query;
+    const { employee_id, from, to, status, self } = req.query;
 
-    // Check if user has permission to view all or only own records
+    const employeeId = await resolveEmployeeId(req.user);
+
+    // Check if user is System Admin
     const userRole = req.user.role_id;
     const [permRows] = await pool.query(
-      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'attendance.manage_all' OR p.code = 'system.admin')`,
+      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'system.admin')`,
       [userRole]
     );
-    const canManageAll = permRows.length > 0;
+    const isSystemAdmin = permRows.length > 0;
 
     let whereConditions = [];
     let queryParams = [];
 
-    if (!canManageAll) {
-      // Strictly scope to own profile
-      if (!req.user.employee_id) {
+    if (self === 'true' || !isSystemAdmin || employee_id) {
+      const targetEmpId = (self === 'true' || !isSystemAdmin) ? employeeId : employee_id;
+      if (targetEmpId) {
+        whereConditions.push('a.employee_id = ?');
+        queryParams.push(targetEmpId);
+      } else if (!isSystemAdmin) {
         return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
       }
-      whereConditions.push('a.employee_id = ?');
-      queryParams.push(req.user.employee_id);
-    } else if (employee_id) {
-      whereConditions.push('a.employee_id = ?');
-      queryParams.push(employee_id);
     }
 
     if (from) {
