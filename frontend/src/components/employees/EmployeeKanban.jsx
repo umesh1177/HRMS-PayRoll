@@ -25,6 +25,7 @@ import {
 import {
   EyeIcon,
   PencilSquareIcon,
+  TrashIcon,
   MagnifyingGlassIcon,
   EnvelopeIcon,
   PhoneIcon,
@@ -50,6 +51,7 @@ import { useAuth } from '../../context/AuthContext';
  * @param {Function} props.onSearchChange - Search text callback
  * @param {Function} props.onView - View profile callback
  * @param {Function} props.onEdit - Edit employee callback
+ * @param {Function} [props.onDelete] - Delete employee callback
  * @param {React.ReactNode} [props.actionButton] - Action button (e.g. Add Employee)
  * @returns {JSX.Element} Kanban cards grid
  */
@@ -63,6 +65,7 @@ export default function EmployeeKanban({
   onSearchChange,
   onView,
   onEdit,
+  onDelete,
   actionButton
 }) {
   const { hasPermission } = useAuth();
@@ -211,7 +214,7 @@ export default function EmployeeKanban({
                   </div>
 
                   {/* Card Action Buttons */}
-                  <div className="pt-3 border-t border-blue-gray-50 flex items-center justify-between gap-2 mt-1">
+                  <div className="pt-3 border-t border-blue-gray-50 flex items-center justify-between gap-1.5 mt-1">
                     <Button
                       size="sm"
                       variant="text"
@@ -223,17 +226,33 @@ export default function EmployeeKanban({
                     </Button>
 
                     {canManage && (
-                      <Tooltip content="Edit Employee">
-                        <IconButton
-                          size="sm"
-                          variant="text"
-                          color="blue-gray"
-                          onClick={() => onEdit(emp)}
-                          className="hover:bg-blue-gray-50 shrink-0"
-                        >
-                          <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
-                        </IconButton>
-                      </Tooltip>
+                      <>
+                        <Tooltip content="Edit Employee">
+                          <IconButton
+                            size="sm"
+                            variant="text"
+                            color="blue-gray"
+                            onClick={() => onEdit(emp)}
+                            className="hover:bg-blue-gray-50 shrink-0"
+                          >
+                            <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
+                          </IconButton>
+                        </Tooltip>
+
+                        {onDelete && (
+                          <Tooltip content="Delete Employee">
+                            <IconButton
+                              size="sm"
+                              variant="text"
+                              color="red"
+                              onClick={() => onDelete(emp)}
+                              className="hover:bg-red-50 shrink-0"
+                            >
+                              <TrashIcon className="h-4 w-4 text-red-500" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </>
                     )}
                   </div>
                 </CardBody>

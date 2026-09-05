@@ -358,16 +358,28 @@ async function updateEmployee(req, res, next) {
 async function deleteEmployee(req, res, next) {
   try {
     const { id } = req.params;
-    // Prefer soft-deactivate by updating status to terminated to preserve historical FK relations
-    const [result] = await pool.query('UPDATE employees SET status = "terminated", date_left = CURDATE() WHERE id = ?', [id]);
-    if (result.affectedRows === 0) {
+    
+    // Check if employee exists
+    const [existing] = await pool.query('SELECT id, first_name, last_name FROM employees WHERE id = ?', [id]);
+    if (existing.length === 0) {
       const error = new Error(`Employee with ID ${id} not found`);
       error.status = 404;
       error.code = 'NOT_FOUND';
       return next(error);
     }
 
-    res.status(200).json({ message: 'Employee terminated successfully' });
+    try {
+      // Attempt hard delete first (unlinks or deletes non-blocking relations)
+      await pool.query('DELETE FROM employees WHERE id = ?', [id]);
+      return res.status(200).json({ message: 'Employee deleted successfully' });
+    } catch (delErr) {
+      if (delErr.code === 'ER_ROW_IS_REFERENCED_2') {
+        // Fallback to soft termination to preserve historical payslips/payroll FK constraints
+        await pool.query('UPDATE employees SET status = "terminated", date_left = CURDATE() WHERE id = ?', [id]);
+        return res.status(200).json({ message: 'Employee has historical payroll records; status marked as Terminated' });
+      }
+      throw delErr;
+    }
   } catch (err) {
     next(err);
   }

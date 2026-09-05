@@ -14,6 +14,7 @@ import { Button } from '@material-tailwind/react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import ContractList from '../components/contracts/ContractList';
 import ContractForm from '../components/contracts/ContractForm';
+import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
 import mockContracts from '../api/mocks/contracts.json';
@@ -39,7 +40,9 @@ export default function ContractsPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     fetchAuxiliaryData();
@@ -111,6 +114,26 @@ export default function ContractsPage() {
     setFormOpen(true);
   };
 
+  const handleOpenDelete = (contract) => {
+    setSelectedContract(contract);
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedContract) return;
+    try {
+      setDeleteLoading(true);
+      await axiosClient.delete(`/contracts/${selectedContract.id}`);
+      setDeleteOpen(false);
+      setSelectedContract(null);
+      fetchContracts();
+    } catch (err) {
+      console.error('Failed to delete contract:', err);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="mt-6">
       <ContractList
@@ -120,6 +143,7 @@ export default function ContractsPage() {
         totalPages={totalPages}
         onPageChange={setPage}
         onEdit={handleEdit}
+        onDelete={canManage ? handleOpenDelete : null}
         actionButton={
           canManage && (
             <Button
@@ -142,6 +166,16 @@ export default function ContractsPage() {
         schedules={schedules}
         salaryStructures={salaryStructures}
         onSuccess={fetchContracts}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Contract"
+        itemName={selectedContract ? `contract for ${selectedContract.employee_name || 'Employee'}` : 'this contract'}
+        loading={deleteLoading}
       />
     </div>
   );

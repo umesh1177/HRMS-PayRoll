@@ -21,6 +21,7 @@ import { InformationCircleIcon } from '@heroicons/react/24/solid';
 import AttendanceWidget from '../components/attendance/AttendanceWidget';
 import AttendanceList from '../components/attendance/AttendanceList';
 import Modal from '../components/common/Modal';
+import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
 import mockAttendances from '../api/mocks/attendances.json';
@@ -50,6 +51,12 @@ export default function AttendancePage() {
   });
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [editError, setEditError] = useState('');
+
+  // Delete Modal State
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     fetchAttendance();
@@ -104,6 +111,29 @@ export default function AttendancePage() {
     }
   };
 
+  const handleOpenDelete = (record) => {
+    setRecordToDelete(record);
+    setDeleteError(null);
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!recordToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await axiosClient.delete(`/attendance/${recordToDelete.id}`);
+      setDeleteOpen(false);
+      setRecordToDelete(null);
+      fetchAttendance();
+    } catch (err) {
+      console.error('Failed to delete attendance record:', err);
+      setDeleteError(err.response?.data?.message || 'Failed to delete attendance record.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="mt-6 flex flex-col gap-6">
       {/* Self-service punch widget */}
@@ -117,6 +147,7 @@ export default function AttendancePage() {
         totalPages={totalPages}
         onPageChange={setPage}
         onEdit={handleOpenEdit}
+        onDelete={canManageAll ? handleOpenDelete : undefined}
       />
 
       {/* Manual HR Correction Modal */}
@@ -210,6 +241,21 @@ export default function AttendancePage() {
           </form>
         </Modal>
       )}
+
+      {/* Delete Attendance Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setRecordToDelete(null);
+          setDeleteError(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        loading={deleteLoading}
+        title="Delete Attendance Record"
+        description={`Are you sure you want to delete attendance record #${recordToDelete?.id || ''} for ${recordToDelete?.employee_name || 'employee'} (${recordToDelete?.check_in ? recordToDelete.check_in.slice(0, 10) : ''})?`}
+        errorMessage={deleteError}
+      />
     </div>
   );
 }

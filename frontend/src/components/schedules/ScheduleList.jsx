@@ -11,7 +11,7 @@
 
 import React from 'react';
 import { Typography, Chip, IconButton, Tooltip } from '@material-tailwind/react';
-import { PencilSquareIcon } from '@heroicons/react/24/outline';
+import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
 
@@ -22,6 +22,7 @@ import { useAuth } from '../../context/AuthContext';
  * @param {Array<object>} props.schedules - Schedule records
  * @param {boolean} props.loading - Loading state
  * @param {Function} props.onEdit - Callback when editing schedule (sch: object) => void
+ * @param {Function} [props.onDelete] - Callback when deleting schedule (sch: object) => void
  * @param {React.ReactNode} [props.actionButton] - Create button
  * @returns {JSX.Element} Schedules data table
  */
@@ -29,6 +30,7 @@ export default function ScheduleList({
   schedules = [],
   loading = false,
   onEdit,
+  onDelete,
   actionButton
 }) {
   const { hasPermission } = useAuth();
@@ -78,16 +80,30 @@ export default function ScheduleList({
       label: 'Actions',
       render: (row) => (
         canManage && (
-          <Tooltip content="Edit Schedule & Shifts">
-            <IconButton
-              variant="text"
-              color="blue-gray"
-              size="sm"
-              onClick={() => onEdit(row)}
-            >
-              <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
-            </IconButton>
-          </Tooltip>
+          <div className="flex items-center gap-1">
+            <Tooltip content="Edit Schedule & Shifts">
+              <IconButton
+                variant="text"
+                color="blue-gray"
+                size="sm"
+                onClick={() => onEdit(row)}
+              >
+                <PencilSquareIcon className="h-4 w-4 text-blue-gray-600" />
+              </IconButton>
+            </Tooltip>
+            {onDelete && (
+              <Tooltip content="Delete Schedule">
+                <IconButton
+                  variant="text"
+                  color="red"
+                  size="sm"
+                  onClick={() => onDelete(row)}
+                >
+                  <TrashIcon className="h-4 w-4 text-red-500" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </div>
         )
       )
     }
