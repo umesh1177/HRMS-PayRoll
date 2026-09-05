@@ -3,11 +3,7 @@
  * 
  * RESPONSIBILITY:
  * Collects contract configuration inputs (wage, salary structure, period dates, status)
- * and submits creation/update payloads. Displays overlap conflict errors if the server
- * rejects overlapping running contracts.
- * 
- * NOT RESPONSIBLE FOR:
- * Direct table rendering or payslip computation.
+ * and submits creation/update payloads with inline real-time validation.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,6 +16,11 @@ import {
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
+import {
+  validatePositiveNumber,
+  validateDateRange,
+  validateRequired
+} from '../../utils/formValidators';
 
 /**
  * Contract Form Component.
@@ -62,6 +63,7 @@ export default function ContractForm({
     status: 'draft'
   });
 
+  const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -93,16 +95,44 @@ export default function ContractForm({
         status: 'draft'
       });
     }
+    setTouched({});
     setErrorMessage('');
   }, [contract, open, employees]);
+
+  // Validation
+  const errors = {
+    employee_id: validateRequired(formData.employee_id, 'Employee'),
+    salary_structure_id: validateRequired(formData.salary_structure_id, 'Salary structure'),
+    wage: validatePositiveNumber(formData.wage, 'Wage amount', 1),
+    dates: validateDateRange(formData.start_date, formData.end_date, 'Start Date', 'End Date')
+  };
+
+  const hasErrors = Object.values(errors).some((err) => err !== null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setTouched({
+      employee_id: true,
+      salary_structure_id: true,
+      wage: true,
+      start_date: true,
+      end_date: true
+    });
+
+    if (hasErrors) {
+      setErrorMessage('Please fix highlighted errors before submitting.');
+      return;
+    }
+
     setErrorMessage('');
     setSubmitting(true);
 
@@ -140,7 +170,7 @@ export default function ContractForm({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? `Edit Contract #${contract.id}` : 'Create Employment Contract'}
+      title={isEdit ? `Edit Contract (#${contract?.id})` : 'Create New Contract'}
       size="lg"
       footer={
         <>
@@ -148,7 +178,7 @@ export default function ContractForm({
             Cancel
           </Button>
           <Button color="indigo" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? 'Saving...' : isEdit ? 'Update Contract' : 'Save Contract'}
+            {submitting ? 'Saving...' : isEdit ? 'Update Contract' : 'Create Contract'}
           </Button>
         </>
       }
@@ -169,17 +199,20 @@ export default function ContractForm({
               name="employee_id"
               value={formData.employee_id}
               onChange={handleChange}
+              onBlur={() => handleBlur('employee_id')}
               disabled={isEdit}
-              className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
-              required
+              className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none disabled:bg-blue-gray-50"
             >
               <option value="">-- Select Employee --</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.first_name} {emp.last_name} ({emp.employee_code})
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.first_name} {e.last_name} ({e.employee_code})
                 </option>
               ))}
             </select>
+            {touched.employee_id && errors.employee_id && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.employee_id}</p>
+            )}
           </div>
 
           <div>
@@ -192,7 +225,7 @@ export default function ContractForm({
               onChange={handleChange}
               className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
             >
-              <option value="draft">Draft</option>
+              <option value="draft">Draft (Planning)</option>
               <option value="running">Running (Active)</option>
               <option value="expired">Expired</option>
               <option value="cancelled">Cancelled</option>
@@ -201,17 +234,23 @@ export default function ContractForm({
 
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
-              Monthly Wage ($) *
+              Monthly Wage / Salary ($) *
             </Typography>
             <Input
               type="number"
               step="0.01"
+              min="1"
               name="wage"
               value={formData.wage}
               onChange={handleChange}
+              onBlur={() => handleBlur('wage')}
+              error={!!(touched.wage && errors.wage)}
               placeholder="5000.00"
               required
             />
+            {touched.wage && errors.wage && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.wage}</p>
+            )}
           </div>
 
           <div>
@@ -224,9 +263,10 @@ export default function ContractForm({
               onChange={handleChange}
               className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
             >
-              <option value="permanent">Permanent</option>
-              <option value="fixed_term">Fixed Term</option>
-              <option value="probation">Probation</option>
+              <option value="permanent">Permanent (Full Time)</option>
+              <option value="temporary">Temporary (Fixed Term)</option>
+              <option value="contractor">Contractor (External)</option>
+              <option value="intern">Internship</option>
             </select>
           </div>
 
@@ -238,14 +278,18 @@ export default function ContractForm({
               name="salary_structure_id"
               value={formData.salary_structure_id}
               onChange={handleChange}
+              onBlur={() => handleBlur('salary_structure_id')}
               className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
             >
-              <option value="1">Regular Salary Structure</option>
-              {salaryStructures.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
+              {salaryStructures.length === 0 ? (
+                <option value="1">Regular Salary Structure</option>
+              ) : (
+                salaryStructures.map((ss) => (
+                  <option key={ss.id} value={ss.id}>
+                    {ss.name}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -259,7 +303,7 @@ export default function ContractForm({
               onChange={handleChange}
               className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
             >
-              <option value="">-- Default / None --</option>
+              <option value="">-- Default Schedule --</option>
               {schedules.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.total_weekly_hours} hrs/wk)
@@ -270,27 +314,33 @@ export default function ContractForm({
 
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
-              Start Date *
+              Contract Start Date *
             </Typography>
             <Input
               type="date"
               name="start_date"
               value={formData.start_date}
               onChange={handleChange}
+              onBlur={() => handleBlur('start_date')}
               required
             />
           </div>
 
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
-              End Date (Blank if open-ended)
+              Contract End Date (Optional)
             </Typography>
             <Input
               type="date"
               name="end_date"
               value={formData.end_date}
               onChange={handleChange}
+              onBlur={() => handleBlur('end_date')}
+              error={!!(touched.end_date && errors.dates)}
             />
+            {touched.end_date && errors.dates && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.dates}</p>
+            )}
           </div>
         </div>
       </form>

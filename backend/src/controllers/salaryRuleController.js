@@ -10,6 +10,12 @@
  */
 
 const pool = require('../config/db');
+const {
+  isValidCode,
+  isValidEnum,
+  isValidNumber,
+  createValidationError
+} = require('../utils/validators');
 
 /**
  * Lists all salary rules.
@@ -60,10 +66,32 @@ async function createRule(req, res, next) {
     } = req.body;
 
     if (!name || !code || !category || !computation_method) {
-      const error = new Error('name, code, category, and computation_method are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('name, code, category, and computation_method are required'));
+    }
+
+    if (!isValidCode(code)) {
+      return next(createValidationError('Salary rule code must be alphanumeric uppercase without spaces (e.g. BASIC, HRA_01)', 'code'));
+    }
+
+    if (!isValidEnum(category, ['basic', 'allowance', 'deduction', 'gross', 'net'])) {
+      return next(createValidationError('Invalid category. Allowed: basic, allowance, deduction, gross, net', 'category'));
+    }
+
+    if (!isValidEnum(computation_method, ['fixed', 'percentage', 'formula'])) {
+      return next(createValidationError('Invalid computation_method. Allowed: fixed, percentage, formula', 'computation_method'));
+    }
+
+    if (computation_method === 'fixed' && (fixed_amount === undefined || !isValidNumber(fixed_amount, 0))) {
+      return next(createValidationError('Fixed amount must be a positive number (0 or higher)', 'fixed_amount'));
+    }
+
+    if (computation_method === 'percentage') {
+      if (percentage_value === undefined || !isValidNumber(percentage_value, 0, 100)) {
+        return next(createValidationError('Percentage value must be between 0 and 100', 'percentage_value'));
+      }
+      if (!percentage_basis_code) {
+        return next(createValidationError('Percentage basis code is required for percentage rules (e.g. BASIC)', 'percentage_basis_code'));
+      }
     }
 
     const insertSql = `

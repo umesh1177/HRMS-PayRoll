@@ -11,6 +11,13 @@
 
 const pool = require('../config/db');
 const { calculateLeaveDuration, approveTimeOffRequest, refuseTimeOffRequest } = require('../services/timeoffService');
+const {
+  isValidDate,
+  isValidDateRange,
+  isValidNumber,
+  isValidEnum,
+  createValidationError
+} = require('../utils/validators');
 
 // ---------------------------------------------------------------------
 // 1. TIME OFF TYPES
@@ -306,88 +313,75 @@ async function createRequest(req, res, next) {
   try {
     const { employee_id, time_off_type_id, allocation_id, start_date, end_date, reason, status } = req.body;
 
-    const [adminRows] = await pool.query(
-      `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
-       WHERE rp.role_id = ? AND p.code = 'system.admin' LIMIT 1`,
-      [req.user.role_id]
-    );
-    const isAdmin = adminRows.length > 0;
+    // Self-service resolution: if employee_id not passed, use req.user.employee_id
     const targetEmployeeId = employee_id || req.user.employee_id;
 
     if (!targetEmployeeId || !time_off_type_id || !start_date || !end_date) {
-      const error = new Error('employee_id, time_off_type_id, start_date, and end_date are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('employee_id, time_off_type_id, start_date, and end_date are required'));
     }
-    if (!isAdmin && Number(targetEmployeeId) !== Number(req.user.employee_id)) {
-      const error = new Error('You can only create a time off request for yourself');
-      error.status = 403;
-      error.code = 'FORBIDDEN';
-      return next(error);
+
+    if (!isValidDate(start_date) || !isValidDate(end_date)) {
+      return next(createValidationError('Invalid date format for start_date or end_date'));
+    }
+
+    if (!isValidDateRange(start_date, end_date)) {
+      return next(createValidationError('end_date must be on or after start_date', 'end_date'));
     }
 
     const duration = calculateLeaveDuration(start_date, end_date);
-    const requestStatus = status || 'submitted';
-    if (!['draft', 'submitted'].includes(requestStatus)) {
-      const error = new Error('New time off requests can only be draft or submitted');
-      error.status = 400;
-      error.code = 'INVALID_STATE';
-      return next(error);
+    if (duration <= 0) {
+      return next(createValidationError('Time-off duration must be at least 1 day', 'duration'));
     }
 
-    const [[timeOffType]] = await pool.query(
-      'SELECT id, requires_allocation, active FROM time_off_types WHERE id = ?',
-      [time_off_type_id]
+    // Check for overlapping pending or approved requests for this employee
+    const [overlapRows] = await pool.query(
+      `SELECT id FROM time_off_requests 
+       WHERE employee_id = ? AND status IN ('submitted', 'approved') 
+       AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?) OR (start_date >= ? AND end_date <= ?))
+       LIMIT 1`,
+      [targetEmployeeId, start_date, start_date, end_date, end_date, start_date, end_date]
     );
-    if (!timeOffType || !timeOffType.active) {
-      const error = new Error('Selected time off type is not active');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
-    }
 
-    const [overlaps] = await pool.query(
-      `SELECT id FROM time_off_requests
-       WHERE employee_id = ? AND status IN ('submitted', 'approved')
-       AND start_date <= ? AND end_date >= ? LIMIT 1`,
-      [targetEmployeeId, end_date, start_date]
-    );
-    if (overlaps.length > 0) {
-      const error = new Error('This request overlaps an existing submitted or approved request');
+    if (overlapRows.length > 0) {
+      const error = new Error(`You already have an active time-off request (#${overlapRows[0].id}) during this date range`);
       error.status = 409;
-      error.code = 'OVERLAPPING_REQUEST';
+      error.code = 'LEAVE_OVERLAP_CONFLICT';
       return next(error);
     }
 
-    // If type requires allocation and allocation_id wasn't passed, find active allocation
+    // Check leave type configuration
+    const [[leaveType]] = await pool.query('SELECT * FROM time_off_types WHERE id = ?', [time_off_type_id]);
+    if (!leaveType) {
+      return next(createValidationError(`Time off type #${time_off_type_id} does not exist`, 'time_off_type_id'));
+    }
+
+    const requestStatus = status || 'submitted'; // Default to submitted for approval
+
+    // If type requires allocation and allocation_id wasn't passed, find active allocation and check remaining balance
     let resolvedAllocationId = allocation_id || null;
-    if (resolvedAllocationId) {
-      const [[allocation]] = await pool.query(
-        `SELECT id FROM time_off_allocations
-         WHERE id = ? AND employee_id = ? AND time_off_type_id = ? AND status = 'approved'
-         AND valid_from <= ? AND (valid_to >= ? OR valid_to IS NULL)`,
-        [resolvedAllocationId, targetEmployeeId, time_off_type_id, start_date, end_date]
-      );
-      if (!allocation) resolvedAllocationId = null;
-    }
-    if (!resolvedAllocationId) {
+    if (leaveType.requires_allocation) {
       const [allocRows] = await pool.query(
-        `SELECT id FROM time_off_allocations 
-         WHERE employee_id = ? AND time_off_type_id = ? AND status = 'approved'
-         AND valid_from <= ? AND (valid_to >= ? OR valid_to IS NULL)
+        `SELECT id, allocated_amount, taken_amount, (allocated_amount - taken_amount) AS remaining_amount 
+         FROM time_off_allocations 
+         WHERE employee_id = ? AND time_off_type_id = ? AND status = 'approved' AND (valid_to >= ? OR valid_to IS NULL)
+         ORDER BY valid_from ASC
          LIMIT 1`,
-        [targetEmployeeId, time_off_type_id, start_date, end_date]
+        [targetEmployeeId, time_off_type_id, start_date]
       );
-      if (allocRows.length > 0) {
-        resolvedAllocationId = allocRows[0].id;
+
+      if (allocRows.length === 0) {
+        return next(createValidationError(`No active leave quota allocated for ${leaveType.name}. Please contact HR to allocate leave days.`, 'allocation_id'));
       }
-    }
-    if (timeOffType.requires_allocation && !resolvedAllocationId) {
-      const error = new Error('An approved allocation is required for this leave type and date range');
-      error.status = 400;
-      error.code = 'ALLOCATION_REQUIRED';
-      return next(error);
+
+      const alloc = allocRows[0];
+      resolvedAllocationId = alloc.id;
+
+      if (Number(alloc.remaining_amount) < duration) {
+        return next(createValidationError(
+          `Requested duration (${duration} days) exceeds available ${leaveType.name} balance (${alloc.remaining_amount} remaining).`,
+          'duration'
+        ));
+      }
     }
 
     const insertSql = `
@@ -426,17 +420,9 @@ async function createRequest(req, res, next) {
 async function submitRequest(req, res, next) {
   try {
     const { id } = req.params;
-    const [adminRows] = await pool.query(
-      `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
-       WHERE rp.role_id = ? AND p.code = 'system.admin' LIMIT 1`,
-      [req.user.role_id]
-    );
-    const ownershipClause = adminRows.length > 0 ? '' : ' AND employee_id = ?';
-    const params = adminRows.length > 0 ? [id] : [id, req.user.employee_id];
     const [result] = await pool.query(
-      `UPDATE time_off_requests SET status = 'submitted'
-       WHERE id = ? AND status = 'draft'${ownershipClause}`,
-      params
+      'UPDATE time_off_requests SET status = "submitted" WHERE id = ? AND status = "draft"',
+      [id]
     );
 
     if (result.affectedRows === 0) {

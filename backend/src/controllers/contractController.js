@@ -11,6 +11,13 @@
 
 const pool = require('../config/db');
 const { checkRunningContractOverlap } = require('../services/contractService');
+const {
+  isValidNumber,
+  isValidDate,
+  isValidDateRange,
+  isValidEnum,
+  createValidationError
+} = require('../utils/validators');
 
 /**
  * Lists contracts with pagination and joined relation names.
@@ -165,10 +172,27 @@ async function createContract(req, res, next) {
     } = req.body;
 
     if (!employee_id || !salary_structure_id || wage === undefined || !start_date) {
-      const error = new Error('employee_id, salary_structure_id, wage, and start_date are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('employee_id, salary_structure_id, wage, and start_date are required'));
+    }
+
+    if (!isValidNumber(wage, 0.01)) {
+      return next(createValidationError('Contract wage must be a positive number greater than 0', 'wage'));
+    }
+
+    if (!isValidDate(start_date)) {
+      return next(createValidationError('Invalid start_date format', 'start_date'));
+    }
+
+    if (end_date && (!isValidDate(end_date) || !isValidDateRange(start_date, end_date))) {
+      return next(createValidationError('end_date must be a valid date on or after start_date', 'end_date'));
+    }
+
+    if (contract_type && !isValidEnum(contract_type, ['permanent', 'temporary', 'contractor', 'intern'])) {
+      return next(createValidationError('Invalid contract_type. Allowed: permanent, temporary, contractor, intern', 'contract_type'));
+    }
+
+    if (status && !isValidEnum(status, ['draft', 'running', 'expired', 'cancelled'])) {
+      return next(createValidationError('Invalid status. Allowed: draft, running, expired, cancelled', 'status'));
     }
 
     const contractStatus = status || 'draft';

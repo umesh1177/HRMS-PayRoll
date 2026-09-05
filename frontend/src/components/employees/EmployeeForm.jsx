@@ -3,17 +3,13 @@
  * 
  * RESPONSIBILITY:
  * Collects employee demographic, organizational, and scheduling inputs.
- * Dispatches creation (POST /employees) or update (PUT /employees/:id) requests.
- * 
- * NOT RESPONSIBLE FOR:
- * Viewing contracts or computing salary lines.
+ * Dispatches creation (POST /employees) or update (PUT /employees/:id) requests
+ * with real-time inline field validation.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   Input,
-  Select,
-  Option,
   Button,
   Alert,
   Typography
@@ -21,6 +17,11 @@ import {
 import { InformationCircleIcon } from '@heroicons/react/24/solid';
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
+import {
+  validateEmail,
+  validatePhone,
+  validateRequired
+} from '../../utils/formValidators';
 
 /**
  * Employee Form Component.
@@ -62,6 +63,7 @@ export default function EmployeeForm({
     date_joined: new Date().toISOString().split('T')[0]
   });
 
+  const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -81,7 +83,6 @@ export default function EmployeeForm({
         date_joined: employee.date_joined ? employee.date_joined.split('T')[0] : ''
       });
     } else {
-      // Auto-generate code for new employee
       const randomCode = `EMP${Math.floor(100 + Math.random() * 900)}`;
       setFormData({
         employee_code: randomCode,
@@ -97,16 +98,47 @@ export default function EmployeeForm({
         date_joined: new Date().toISOString().split('T')[0]
       });
     }
+    setTouched({});
     setErrorMessage('');
   }, [employee, open]);
+
+  // Field validation checks
+  const errors = {
+    employee_code: validateRequired(formData.employee_code, 'Employee code', 2),
+    first_name: validateRequired(formData.first_name, 'First name', 2),
+    last_name: validateRequired(formData.last_name, 'Last name', 2),
+    email: validateEmail(formData.email),
+    phone: validatePhone(formData.phone),
+    date_joined: validateRequired(formData.date_joined, 'Date joined')
+  };
+
+  const hasErrors = Object.values(errors).some((err) => err !== null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setTouched({
+      employee_code: true,
+      first_name: true,
+      last_name: true,
+      email: true,
+      phone: true,
+      date_joined: true
+    });
+
+    if (hasErrors) {
+      setErrorMessage('Please correct the highlighted fields before submitting.');
+      return;
+    }
+
     setErrorMessage('');
     setSubmitting(true);
 
@@ -143,7 +175,7 @@ export default function EmployeeForm({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? `Edit Employee (${employee.employee_code})` : 'Add New Employee'}
+      title={isEdit ? `Edit Employee (${employee?.employee_code})` : 'Add New Employee'}
       size="lg"
       footer={
         <>
@@ -172,9 +204,14 @@ export default function EmployeeForm({
               name="employee_code"
               value={formData.employee_code}
               onChange={handleChange}
+              onBlur={() => handleBlur('employee_code')}
+              error={!!(touched.employee_code && errors.employee_code)}
               placeholder="EMP001"
               required
             />
+            {touched.employee_code && errors.employee_code && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.employee_code}</p>
+            )}
           </div>
 
           <div>
@@ -190,6 +227,7 @@ export default function EmployeeForm({
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="terminated">Terminated</option>
+              <option value="suspended">Suspended</option>
             </select>
           </div>
 
@@ -201,9 +239,14 @@ export default function EmployeeForm({
               name="first_name"
               value={formData.first_name}
               onChange={handleChange}
+              onBlur={() => handleBlur('first_name')}
+              error={!!(touched.first_name && errors.first_name)}
               placeholder="Jane"
               required
             />
+            {touched.first_name && errors.first_name && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.first_name}</p>
+            )}
           </div>
 
           <div>
@@ -214,9 +257,14 @@ export default function EmployeeForm({
               name="last_name"
               value={formData.last_name}
               onChange={handleChange}
+              onBlur={() => handleBlur('last_name')}
+              error={!!(touched.last_name && errors.last_name)}
               placeholder="Doe"
               required
             />
+            {touched.last_name && errors.last_name && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.last_name}</p>
+            )}
           </div>
 
           <div>
@@ -228,9 +276,14 @@ export default function EmployeeForm({
               name="email"
               value={formData.email}
               onChange={handleChange}
+              onBlur={() => handleBlur('email')}
+              error={!!(touched.email && errors.email)}
               placeholder="jane.doe@company.com"
               required
             />
+            {touched.email && errors.email && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.email}</p>
+            )}
           </div>
 
           <div>
@@ -241,8 +294,13 @@ export default function EmployeeForm({
               name="phone"
               value={formData.phone}
               onChange={handleChange}
+              onBlur={() => handleBlur('phone')}
+              error={!!(touched.phone && errors.phone)}
               placeholder="+1-555-0100"
             />
+            {touched.phone && errors.phone && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.phone}</p>
+            )}
           </div>
 
           <div>
@@ -332,8 +390,13 @@ export default function EmployeeForm({
               name="date_joined"
               value={formData.date_joined}
               onChange={handleChange}
+              onBlur={() => handleBlur('date_joined')}
+              error={!!(touched.date_joined && errors.date_joined)}
               required
             />
+            {touched.date_joined && errors.date_joined && (
+              <p className="text-[11px] text-red-500 mt-1">{errors.date_joined}</p>
+            )}
           </div>
         </div>
       </form>

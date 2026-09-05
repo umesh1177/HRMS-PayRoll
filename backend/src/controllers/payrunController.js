@@ -13,6 +13,11 @@
 
 const pool = require('../config/db');
 const { computeEmployeeSalary } = require('../services/payrollEngine');
+const {
+  isValidDate,
+  isValidDateRange,
+  createValidationError
+} = require('../utils/validators');
 
 /**
  * Lists payruns with pagination, status filters, and summary metrics.
@@ -237,10 +242,19 @@ async function createPayrun(req, res, next) {
     const userId = req.user.id;
 
     if (!name || !salary_structure_id || !period_start || !period_end || !Array.isArray(employee_ids) || employee_ids.length === 0) {
-      const error = new Error('name, salary_structure_id, period_start, period_end, and a non-empty employee_ids array are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('name, salary_structure_id, period_start, period_end, and a non-empty employee_ids array are required'));
+    }
+
+    if (name.trim().length < 3) {
+      return next(createValidationError('Payrun name must contain at least 3 characters', 'name'));
+    }
+
+    if (!isValidDate(period_start) || !isValidDate(period_end)) {
+      return next(createValidationError('Invalid date format for period_start or period_end'));
+    }
+
+    if (!isValidDateRange(period_start, period_end)) {
+      return next(createValidationError('period_end must be on or after period_start', 'period_end'));
     }
 
     await connection.beginTransaction();

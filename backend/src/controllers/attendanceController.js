@@ -11,6 +11,12 @@
 
 const pool = require('../config/db');
 const { calculateWorkedHours, evaluateAttendanceStatus } = require('../services/attendanceService');
+const {
+  isValidDate,
+  isValidDateRange,
+  isValidEnum,
+  createValidationError
+} = require('../utils/validators');
 
 /**
  * Self-service Check-In for the authenticated employee.
@@ -314,6 +320,22 @@ async function manualEdit(req, res, next) {
     const current = existing[0];
     const newCheckIn = check_in || current.check_in;
     const newCheckOut = check_out !== undefined ? check_out : current.check_out;
+
+    if (newCheckIn && !isValidDate(newCheckIn)) {
+      return next(createValidationError('Invalid check_in timestamp', 'check_in'));
+    }
+
+    if (newCheckOut && !isValidDate(newCheckOut)) {
+      return next(createValidationError('Invalid check_out timestamp', 'check_out'));
+    }
+
+    if (newCheckIn && newCheckOut && !isValidDateRange(newCheckIn, newCheckOut)) {
+      return next(createValidationError('check_out must be after check_in', 'check_out'));
+    }
+
+    if (status && !isValidEnum(status, ['present', 'late', 'half_day', 'absent'])) {
+      return next(createValidationError('Invalid status. Allowed: present, late, half_day, absent', 'status'));
+    }
 
     let workedHours = current.worked_hours;
     if (newCheckIn && newCheckOut) {
