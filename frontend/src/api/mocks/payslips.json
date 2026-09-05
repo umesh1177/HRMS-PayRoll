@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "payrun_id": 1,
+    "payrun_name": "September 2026 Payroll",
+    "employee_id": 1,
+    "employee_name": "Alice Smith",
+    "employee_code": "EMP001",
+    "department_name": "Engineering",
+    "job_title": "Lead Architect",
+    "basic_wage": "9500.00",
+    "gross_amount": "14100.00",
+    "net_amount": "12760.00",
+    "worked_days": "22.00",
+    "status": "computed",
+    "has_warning": 0,
+    "warning_notes": null,
+    "period_start": "2026-09-01",
+    "period_end": "2026-09-30",
+    "lines": [
+      { "id": 1, "code": "BASIC", "name": "Basic Wage", "category": "basic", "sequence": 10, "amount": "9500.00" },
+      { "id": 2, "code": "HRA", "name": "House Rent Allowance (HRA)", "category": "allowance", "sequence": 20, "amount": "3800.00" },
+      { "id": 3, "code": "SPECIAL", "name": "Special Allowance", "category": "allowance", "sequence": 30, "amount": "800.00" },
+      { "id": 4, "code": "PF", "name": "Provident Fund (PF)", "category": "deduction", "sequence": 40, "amount": "1140.00" },
+      { "id": 5, "code": "PT", "name": "Professional Tax", "category": "deduction", "sequence": 50, "amount": "200.00" }
+    ]
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "employee_id": 2,
+    "employee_name": "Bob Miller",
+    "employee_code": "EMP002",
+    "department_name": "Engineering",
+    "time_off_type_id": 1,
+    "type_name": "Paid Time Off (PTO)",
+    "type_color": "#4f46e5",
+    "allocation_id": 2,
+    "start_date": "2026-09-15",
+    "end_date": "2026-09-17",
+    "duration": "3.00",
+    "status": "submitted",
+    "reason": "Attending family wedding",
+    "approver_id": null,
+    "approver_email": null,
+    "decided_at": null,
+    "created_at": "2026-09-05T10:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "employee_id": 1,
+    "employee_name": "Alice Smith",
+    "employee_code": "EMP001",
+    "department_name": "Engineering",
+    "time_off_type_id": 2,
+    "type_name": "Sick Leave",
+    "type_color": "#ef4444",
+    "allocation_id": 1,
+    "start_date": "2026-08-20",
+    "end_date": "2026-08-21",
+    "duration": "2.00",
+    "status": "approved",
+    "reason": "Doctor appointment and recovery",
+    "approver_id": 1,
+    "approver_email": "admin@peoplepay360.com",
+    "decided_at": "2026-08-19T16:00:00.000Z",
+    "created_at": "2026-08-19T09:00:00.000Z"
+  }
+]
