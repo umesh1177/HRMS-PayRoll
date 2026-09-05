@@ -22,6 +22,9 @@ router.post('/check-in', attendanceController.checkIn);
 router.post('/check-out', attendanceController.checkOut);
 router.get('/current', attendanceController.getCurrentStatus);
 
+// Employee summary listing for Admin & HR management
+router.get('/employee-summary', attendanceController.getEmployeeAttendanceSummary);
+
 // History listing (scoped internally to own records unless user has attendance.manage_all)
 router.get('/', attendanceController.listAttendance);
 
