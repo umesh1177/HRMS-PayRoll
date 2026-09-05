@@ -99,6 +99,22 @@ export default function ContractForm({
     setErrorMessage('');
   }, [contract, open, employees]);
 
+  const [contractTypes, setContractTypes] = useState([]);
+
+  useEffect(() => {
+    const fetchTypes = async () => {
+      try {
+        const res = await axiosClient.get('/contract-types');
+        if (res.data?.data && res.data.data.length > 0) {
+          setContractTypes(res.data.data);
+        }
+      } catch (err) {
+        // Fallback to defaults
+      }
+    };
+    fetchTypes();
+  }, []);
+
   // Validation
   const errors = {
     employee_id: validateRequired(formData.employee_id, 'Employee'),
@@ -263,10 +279,23 @@ export default function ContractForm({
               onChange={handleChange}
               className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
             >
-              <option value="permanent">Permanent (Full Time)</option>
-              <option value="temporary">Temporary (Fixed Term)</option>
-              <option value="contractor">Contractor (External)</option>
-              <option value="intern">Internship</option>
+              {contractTypes.length > 0 ? (
+                contractTypes
+                  .filter((ct) => ct.status === 'active' || ct.code === formData.contract_type)
+                  .map((ct) => (
+                    <option key={ct.id || ct.code} value={ct.code}>
+                      {ct.name}
+                    </option>
+                  ))
+              ) : (
+                <>
+                  <option value="permanent">Permanent (Full Time)</option>
+                  <option value="fixed_term">Fixed-Term (Temporary)</option>
+                  <option value="contractor">Contractor (External)</option>
+                  <option value="intern">Internship / Probation</option>
+                  <option value="part_time">Part-Time</option>
+                </>
+              )}
             </select>
           </div>
 

@@ -2,193 +2,250 @@
  * Contract Types & Categories Component
  * 
  * RESPONSIBILITY:
- * Renders an overview of contract types supported by the system:
- * - Permanent / Full-time
- * - Fixed-Term / Temporary
- * - Contractor / Freelance
- * - Probation / Internship
- * Shows active counts, compensation structures, and terms.
+ * Renders live list of contract types from backend API, displays active contracts count,
+ * and allows Admins to create new contract types, edit existing types, and delete unused types.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardBody,
   Typography,
   Chip,
-  Button
+  Button,
+  IconButton,
+  Tooltip
 } from '@material-tailwind/react';
 import {
-  DocumentCheckIcon,
-  BriefcaseIcon,
-  ClockIcon,
   ShieldCheckIcon,
-  SparklesIcon
+  ClockIcon,
+  BriefcaseIcon,
+  SparklesIcon,
+  DocumentDuplicateIcon,
+  PlusIcon,
+  PencilSquareIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import axiosClient from '../../api/axiosClient';
+import ContractTypeModal from './ContractTypeModal';
+import ConfirmDeleteModal from '../common/ConfirmDeleteModal';
+import DataTable from '../common/DataTable';
+import { useAuth } from '../../context/AuthContext';
 
-const CONTRACT_TYPE_METADATA = [
-  {
-    type: 'permanent',
-    title: 'Permanent / Full-Time',
-    badgeColor: 'indigo',
-    icon: ShieldCheckIcon,
-    description: 'Standard indefinite employment agreements with full company benefits, annual leave quotas, and regular salary structures.',
-    terms: 'Indefinite duration, standard notice period (30-60 days), full benefits & PTO accrual.',
-    defaultSchedule: 'Standard 40h Full-Time (Mon-Fri)',
-    probation: 'Typically 3-6 months'
-  },
-  {
-    type: 'fixed_term',
-    title: 'Fixed-Term / Temporary',
-    badgeColor: 'amber',
-    icon: ClockIcon,
-    description: 'Time-bound employment agreements with designated start and end dates for project-based initiatives.',
-    terms: 'Defined duration, renewal upon mutual consent, prorated leave & structure.',
-    defaultSchedule: 'Standard 40h or Project Shift',
-    probation: '1-2 months'
-  },
-  {
-    type: 'contractor',
-    title: 'Contractor / Consultant',
-    badgeColor: 'cyan',
-    icon: BriefcaseIcon,
-    description: 'Independent specialist contracts with milestone-based or hourly/monthly retainers without standard employee payroll tax withholding.',
-    terms: 'Service agreement basis, invoice-linked or direct rate, flexible working arrangement.',
-    defaultSchedule: 'Flexible / Task-based',
-    probation: 'N/A'
-  },
-  {
-    type: 'intern',
-    title: 'Internship / Probationary',
-    badgeColor: 'teal',
-    icon: SparklesIcon,
-    description: 'Training and evaluation contracts for trainees, fresh graduates, or newly onboarded staff undergoing trial periods.',
-    terms: 'Fixed 3 to 6 months duration, stipend or base wage, transition to permanent contract upon review.',
-    defaultSchedule: 'Standard Full-Time or Part-Time',
-    probation: 'Evaluated continuously'
-  }
-];
+const DEFAULT_ICONS = {
+  permanent: ShieldCheckIcon,
+  fixed_term: ClockIcon,
+  contractor: BriefcaseIcon,
+  intern: SparklesIcon,
+  part_time: ClockIcon
+};
 
 export default function ContractTypesList() {
-  const [contracts, setContracts] = useState([]);
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('contract.manage') || hasPermission('employee.manage') || hasPermission('user.manage');
+
+  const [contractTypes, setContractTypes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchContracts = async () => {
-      try {
-        setLoading(true);
-        const res = await axiosClient.get('/contracts?limit=200');
-        if (res.data?.data) {
-          setContracts(res.data.data);
-        }
-      } catch (err) {
-        console.error('Failed to load contracts for contract types breakdown:', err);
-      } finally {
-        setLoading(false);
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState(null);
+
+  // Delete modal state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [typeToDelete, setTypeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const fetchContractTypes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await axiosClient.get('/contract-types');
+      if (res.data?.data) {
+        setContractTypes(res.data.data);
       }
-    };
-    fetchContracts();
+    } catch (err) {
+      console.error('Failed to load contract types:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const getContractCount = (type) => {
-    return contracts.filter((c) => c.contract_type === type || (type === 'intern' && c.contract_type === 'probation')).length;
+  useEffect(() => {
+    fetchContractTypes();
+  }, [fetchContractTypes]);
+
+  const handleOpenCreate = () => {
+    setSelectedType(null);
+    setModalOpen(true);
   };
 
-  const getRunningCount = (type) => {
-    return contracts.filter(
-      (c) => (c.contract_type === type || (type === 'intern' && c.contract_type === 'probation')) && c.status === 'running'
-    ).length;
+  const handleOpenEdit = (type) => {
+    setSelectedType(type);
+    setModalOpen(true);
   };
+
+  const handleOpenDelete = (type) => {
+    setTypeToDelete(type);
+    setDeleteError('');
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!typeToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await axiosClient.delete(`/contract-types/${typeToDelete.id}`);
+      setDeleteOpen(false);
+      setTypeToDelete(null);
+      fetchContractTypes();
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete contract type.';
+      setDeleteError(msg);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const columns = [
+    {
+      key: 'name',
+      label: 'Contract Type',
+      render: (row) => {
+        const Icon = DEFAULT_ICONS[row.code] || DocumentDuplicateIcon;
+        return (
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700 shrink-0">
+              <Icon className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="font-semibold text-xs text-blue-gray-900 block">{row.name}</span>
+              <span className="text-[10px] text-blue-gray-400 font-mono uppercase">Code: {row.code}</span>
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'default_duration',
+      label: 'Duration',
+      render: (row) => (
+        <span className="text-xs text-blue-gray-700 font-medium">
+          {row.default_duration || 'Not specified'}
+        </span>
+      )
+    },
+    {
+      key: 'default_terms',
+      label: 'Standard Terms',
+      render: (row) => (
+        <span className="text-xs text-blue-gray-600 max-w-xs block truncate" title={row.default_terms}>
+          {row.default_terms || 'Standard company terms'}
+        </span>
+      )
+    },
+    {
+      key: 'active_contracts_count',
+      label: 'Active Contracts',
+      render: (row) => (
+        <Chip
+          size="sm"
+          variant="ghost"
+          color="indigo"
+          value={`${row.active_contracts_count || 0} Active / ${row.total_contracts_count || 0} Total`}
+          className="font-bold text-[10px]"
+        />
+      )
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) => (
+        <Chip
+          size="sm"
+          variant="ghost"
+          value={row.status}
+          color={row.status === 'active' ? 'green' : 'red'}
+          className="w-fit capitalize font-semibold text-[11px]"
+        />
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-1">
+          <Tooltip content="Edit Contract Type">
+            <IconButton
+              variant="text"
+              color="indigo"
+              size="sm"
+              onClick={() => handleOpenEdit(row)}
+            >
+              <PencilSquareIcon className="h-4 w-4" />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip content="Delete Contract Type">
+            <IconButton
+              variant="text"
+              color="red"
+              size="sm"
+              onClick={() => handleOpenDelete(row)}
+            >
+              <TrashIcon className="h-4 w-4" />
+            </IconButton>
+          </Tooltip>
+        </div>
+      )
+    }
+  ];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-blue-gray-100 shadow-sm">
-        <div>
-          <h5 className="text-base font-bold text-blue-gray-800">
-            Employment Contract Types & Categories
-          </h5>
-          <p className="text-xs text-blue-gray-500 mt-0.5">
-            Standard employment archetypes, statutory terms, and live contract counts in PeoplePay360
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Chip
-            variant="ghost"
-            color="indigo"
-            value={`${contracts.length} Total Contracts`}
-            className="font-bold text-xs"
-          />
-        </div>
-      </div>
+      <DataTable
+        title="Employment Contract Types & Categories"
+        subtitle="Configure contract archetypes, default durations, terms, and active contract associations"
+        columns={columns}
+        data={contractTypes}
+        loading={loading}
+        actionButton={
+          canManage && (
+            <Button
+              color="indigo"
+              size="sm"
+              className="flex items-center gap-2 shadow-indigo-500/20"
+              onClick={handleOpenCreate}
+            >
+              <PlusIcon className="h-4 w-4" /> Add Contract Type
+            </Button>
+          )
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {CONTRACT_TYPE_METADATA.map((ct) => {
-          const Icon = ct.icon;
-          const totalCount = getContractCount(ct.type);
-          const runningCount = getRunningCount(ct.type);
+      {/* Contract Type Form Modal */}
+      <ContractTypeModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        contractType={selectedType}
+        onSuccess={fetchContractTypes}
+      />
 
-          return (
-            <Card key={ct.type} className="border border-blue-gray-100 shadow-sm hover:shadow-md transition-shadow">
-              <CardBody className="p-5 flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <Typography variant="h6" color="blue-gray" className="font-bold text-sm">
-                          {ct.title}
-                        </Typography>
-                        <span className="text-[11px] font-semibold text-blue-gray-400 uppercase tracking-wider">
-                          Type Code: <code className="text-indigo-600 font-mono">{ct.type}</code>
-                        </span>
-                      </div>
-                    </div>
-
-                    <Chip
-                      size="sm"
-                      variant="filled"
-                      color={ct.badgeColor}
-                      value={`${runningCount} Active`}
-                      className="font-bold text-[10px] uppercase"
-                    />
-                  </div>
-
-                  <p className="text-xs text-blue-gray-600 leading-relaxed mb-4">
-                    {ct.description}
-                  </p>
-
-                  <div className="p-3 bg-blue-gray-50/50 rounded-lg space-y-2 text-xs border border-blue-gray-100/60 mb-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-blue-gray-700">Standard Terms:</span>
-                      <span className="text-blue-gray-600 text-right">{ct.terms}</span>
-                    </div>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-blue-gray-700">Default Schedule:</span>
-                      <span className="text-blue-gray-600 text-right">{ct.defaultSchedule}</span>
-                    </div>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-blue-gray-700">Probation Period:</span>
-                      <span className="text-blue-gray-600 text-right">{ct.probation}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-blue-gray-100 flex items-center justify-between text-xs">
-                  <span className="text-blue-gray-500 font-medium">
-                    Total Registered: <strong className="text-blue-gray-900">{totalCount}</strong>
-                  </span>
-                  <span className="text-indigo-600 font-semibold text-[11px]">
-                    Supported in Contract Creation
-                  </span>
-                </div>
-              </CardBody>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false);
+          setTypeToDelete(null);
+          setDeleteError('');
+        }}
+        onConfirm={handleConfirmDelete}
+        loading={deleteLoading}
+        title="Delete Contract Type"
+        itemName={typeToDelete?.name || 'this contract type'}
+        errorMessage={deleteError}
+      />
     </div>
   );
 }

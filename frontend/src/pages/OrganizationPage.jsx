@@ -2,11 +2,10 @@
  * Organization & Structure Management Hub Page
  * 
  * RESPONSIBILITY:
- * Hosts a centralized 4-tab administrative hub:
+ * Hosts a centralized administrative hub for:
  * 1. Departments (view existing, add new, edit manager, delete)
  * 2. Job Roles / Positions (view existing, add new, edit department link, delete)
- * 3. Types of Contracts (view standard contract categories, terms, and active counts)
- * 4. Working Schedules (view templates, shifts matrix, add/edit/delete schedules)
+ * 3. Types of Contracts (view existing, add new contract types, edit, delete)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -26,11 +25,9 @@ import {
   BuildingOffice2Icon,
   BriefcaseIcon,
   DocumentDuplicateIcon,
-  CalendarDaysIcon,
   PlusIcon,
   PencilSquareIcon,
-  TrashIcon,
-  UserGroupIcon
+  TrashIcon
 } from '@heroicons/react/24/outline';
 
 import DataTable from '../components/common/DataTable';
@@ -38,9 +35,6 @@ import ConfirmDeleteModal from '../components/common/ConfirmDeleteModal';
 import DepartmentModal from '../components/organization/DepartmentModal';
 import JobPositionModal from '../components/organization/JobPositionModal';
 import ContractTypesList from '../components/organization/ContractTypesList';
-
-import ScheduleList from '../components/schedules/ScheduleList';
-import ScheduleForm from '../components/schedules/ScheduleForm';
 
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
@@ -68,15 +62,9 @@ export default function OrganizationPage() {
   // Shared Employees for Managers
   const [employees, setEmployees] = useState([]);
 
-  // Schedules State
-  const [schedules, setSchedules] = useState([]);
-  const [loadingSchedules, setLoadingSchedules] = useState(true);
-  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState(null);
-
   // Delete State
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteType, setDeleteType] = useState(null); // 'dept' | 'pos' | 'schedule'
+  const [deleteType, setDeleteType] = useState(null); // 'dept' | 'pos'
   const [itemToDelete, setItemToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -109,20 +97,6 @@ export default function OrganizationPage() {
     }
   }, []);
 
-  const fetchSchedules = useCallback(async () => {
-    try {
-      setLoadingSchedules(true);
-      const res = await axiosClient.get('/schedules');
-      if (res.data?.data) {
-        setSchedules(res.data.data);
-      }
-    } catch (err) {
-      console.error('Failed to load schedules:', err);
-    } finally {
-      setLoadingSchedules(false);
-    }
-  }, []);
-
   const fetchEmployees = useCallback(async () => {
     try {
       const res = await axiosClient.get('/employees?limit=200');
@@ -137,9 +111,8 @@ export default function OrganizationPage() {
   useEffect(() => {
     fetchDepartments();
     fetchPositions();
-    fetchSchedules();
     fetchEmployees();
-  }, [fetchDepartments, fetchPositions, fetchSchedules, fetchEmployees]);
+  }, [fetchDepartments, fetchPositions, fetchEmployees]);
 
   const handleTabChange = (val) => {
     setActiveTab(val);
@@ -182,29 +155,6 @@ export default function OrganizationPage() {
     setDeleteOpen(true);
   };
 
-  // Schedule Handlers
-  const handleOpenCreateSchedule = () => {
-    setSelectedSchedule(null);
-    setScheduleModalOpen(true);
-  };
-
-  const handleOpenEditSchedule = async (sch) => {
-    try {
-      const res = await axiosClient.get(`/schedules/${sch.id}`);
-      setSelectedSchedule(res.data?.data || sch);
-    } catch {
-      setSelectedSchedule(sch);
-    }
-    setScheduleModalOpen(true);
-  };
-
-  const handleOpenDeleteSchedule = (sch) => {
-    setDeleteType('schedule');
-    setItemToDelete(sch);
-    setDeleteError('');
-    setDeleteOpen(true);
-  };
-
   // General Confirm Delete
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
@@ -219,9 +169,6 @@ export default function OrganizationPage() {
       } else if (deleteType === 'pos') {
         await axiosClient.delete(`/departments/positions/${itemToDelete.id}`);
         fetchPositions();
-      } else if (deleteType === 'schedule') {
-        await axiosClient.delete(`/schedules/${itemToDelete.id}`);
-        fetchSchedules();
       }
       setDeleteOpen(false);
       setItemToDelete(null);
@@ -366,7 +313,7 @@ export default function OrganizationPage() {
   return (
     <div className="mt-6 flex flex-col gap-6">
       <Tabs value={activeTab}>
-        <TabsHeader className="bg-white border border-blue-gray-100 p-1.5 shadow-sm max-w-3xl">
+        <TabsHeader className="bg-white border border-blue-gray-100 p-1.5 shadow-sm max-w-2xl">
           <Tab value="departments" onClick={() => handleTabChange('departments')} className="text-xs font-bold py-2.5">
             <div className="flex items-center gap-2">
               <BuildingOffice2Icon className="h-4 w-4" /> Departments
@@ -380,11 +327,6 @@ export default function OrganizationPage() {
           <Tab value="contracts" onClick={() => handleTabChange('contracts')} className="text-xs font-bold py-2.5">
             <div className="flex items-center gap-2">
               <DocumentDuplicateIcon className="h-4 w-4" /> Contract Types
-            </div>
-          </Tab>
-          <Tab value="schedules" onClick={() => handleTabChange('schedules')} className="text-xs font-bold py-2.5">
-            <div className="flex items-center gap-2">
-              <CalendarDaysIcon className="h-4 w-4" /> Working Schedules
             </div>
           </Tab>
         </TabsHeader>
@@ -440,28 +382,6 @@ export default function OrganizationPage() {
           <TabPanel value="contracts" className="p-0">
             <ContractTypesList />
           </TabPanel>
-
-          {/* TAB 4: WORKING SCHEDULES */}
-          <TabPanel value="schedules" className="p-0">
-            <ScheduleList
-              schedules={schedules}
-              loading={loadingSchedules}
-              onEdit={handleOpenEditSchedule}
-              onDelete={canManage ? handleOpenDeleteSchedule : undefined}
-              actionButton={
-                canManage && (
-                  <Button
-                    color="indigo"
-                    size="sm"
-                    className="flex items-center gap-2 shadow-indigo-500/20"
-                    onClick={handleOpenCreateSchedule}
-                  >
-                    <PlusIcon className="h-4 w-4" /> Add Schedule
-                  </Button>
-                )
-              }
-            />
-          </TabPanel>
         </TabsBody>
       </Tabs>
 
@@ -483,14 +403,6 @@ export default function OrganizationPage() {
         onSuccess={fetchPositions}
       />
 
-      {/* Schedule Form Modal */}
-      <ScheduleForm
-        open={scheduleModalOpen}
-        onClose={() => setScheduleModalOpen(false)}
-        schedule={selectedSchedule}
-        onSuccess={fetchSchedules}
-      />
-
       {/* Shared Delete Confirmation Dialog */}
       <ConfirmDeleteModal
         open={deleteOpen}
@@ -501,22 +413,11 @@ export default function OrganizationPage() {
         }}
         onConfirm={handleConfirmDelete}
         loading={deleteLoading}
-        title={
-          deleteType === 'dept'
-            ? 'Delete Department'
-            : deleteType === 'pos'
-            ? 'Delete Job Role'
-            : 'Delete Working Schedule'
-        }
-        itemName={
-          deleteType === 'dept'
-            ? itemToDelete?.name
-            : deleteType === 'pos'
-            ? itemToDelete?.title
-            : itemToDelete?.name || 'this item'
-        }
+        title={deleteType === 'dept' ? 'Delete Department' : 'Delete Job Role'}
+        itemName={deleteType === 'dept' ? itemToDelete?.name : itemToDelete?.title || 'this item'}
         errorMessage={deleteError}
       />
     </div>
   );
 }
+

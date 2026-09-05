@@ -60,12 +60,6 @@ export default function Sidebar({ isOpen = true, onClose }) {
       show: true
     },
     {
-      name: 'Working Schedules',
-      path: '/schedules',
-      icon: CalendarDaysIcon,
-      show: hasPermission('schedule.manage')
-    },
-    {
       name: 'Attendance',
       path: '/attendance',
       icon: ClockIcon,
