@@ -40,6 +40,7 @@ import NetSalaryTrendChart from '../components/dashboard/NetSalaryTrendChart';
 import PayslipStatusDonut from '../components/dashboard/PayslipStatusDonut';
 import AttendanceOverviewCard from '../components/dashboard/AttendanceOverviewCard';
 import TimeOffOverviewCard from '../components/dashboard/TimeOffOverviewCard';
+import EmployeeDashboard from '../components/dashboard/EmployeeDashboard';
 
 /**
  * Main Executive Dashboard.
@@ -47,7 +48,16 @@ import TimeOffOverviewCard from '../components/dashboard/TimeOffOverviewCard';
  * @returns {JSX.Element} Dashboard screen
  */
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+
+  // If user is an employee, display the personalized employee self-service dashboard
+  if (
+    user?.role === 'Employee' ||
+    (!hasPermission('employee.view_all') && !hasPermission('payroll.payrun.manage') && !hasPermission('system.admin'))
+  ) {
+    return <EmployeeDashboard />;
+  }
+
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState([]);
 

@@ -72,7 +72,7 @@ export default function AppRoutes() {
       <Route
         path="/employees"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="employee.view_all">
             <DashboardLayout>
               <EmployeesPage />
             </DashboardLayout>
