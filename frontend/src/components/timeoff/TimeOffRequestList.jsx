@@ -23,6 +23,19 @@ import DataTable from '../common/DataTable';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
 
+function formatDuration(duration, unit = 'day') {
+  const numericDuration = Number(duration);
+  const value = Number.isInteger(numericDuration) ? String(numericDuration) : String(numericDuration).replace(/0+$/, '').replace(/\.$/, '');
+  const label = unit === 'hour' ? 'hour' : 'day';
+  return `${value} ${label}${numericDuration === 1 ? '' : 's'}`;
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return '-';
+  const [year, month, day] = String(dateValue).slice(0, 10).split('-');
+  return year && month && day ? `${day}-${month}-${year}` : String(dateValue);
+}
+
 /**
  * Time Off Requests List.
  * 
@@ -106,8 +119,7 @@ export default function TimeOffRequestList({
     }
   };
 
-  const columns = [
-    {
+  const employeeColumn = {
       key: 'employee_name',
       label: 'Employee',
       render: (row) => (
@@ -118,7 +130,8 @@ export default function TimeOffRequestList({
           </span>
         </div>
       )
-    },
+    };
+  const columns = [
     {
       key: 'type_name',
       label: 'Leave Type',
@@ -137,10 +150,10 @@ export default function TimeOffRequestList({
       render: (row) => (
         <div>
           <p className="text-xs font-semibold text-blue-gray-800">
-            {row.start_date} → {row.end_date}
+            {formatDate(row.start_date)} to {formatDate(row.end_date)}
           </p>
           <p className="text-xs text-blue-gray-500 font-mono">
-            {row.duration} day(s)
+            {formatDuration(row.duration, row.type_unit)}
           </p>
         </div>
       )
@@ -221,6 +234,7 @@ export default function TimeOffRequestList({
       }
     }
   ];
+  if (canApprove) columns.unshift(employeeColumn);
 
   return (
     <DataTable

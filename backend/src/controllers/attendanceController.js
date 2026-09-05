@@ -281,6 +281,7 @@ async function getSummary(req, res, next) {
 
     const [[summary]] = await pool.query(
       `SELECT
+        COALESCE(SUM(CASE WHEN DATE(a.check_in) = CURDATE() THEN a.worked_hours ELSE 0 END), 0) AS today_hours,
         COALESCE(SUM(CASE WHEN DATE(a.check_in) >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) THEN a.worked_hours ELSE 0 END), 0) AS week_hours,
         COUNT(DISTINCT CASE WHEN DATE(a.check_in) >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) AND a.worked_hours IS NOT NULL THEN DATE(a.check_in) END) AS week_days_present,
         COALESCE(SUM(CASE WHEN YEAR(a.check_in) = YEAR(CURDATE()) AND MONTH(a.check_in) = MONTH(CURDATE()) THEN a.worked_hours ELSE 0 END), 0) AS month_hours,
@@ -289,6 +290,54 @@ async function getSummary(req, res, next) {
       [employeeId]
     );
     res.status(200).json({ data: { employee_id: Number(employeeId), ...summary } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Creates an audited present/absent attendance marker for a date without a punch.
+ */
+async function markAttendance(req, res, next) {
+  try {
+    const { employee_id, date, status, notes } = req.body;
+    if (!date || !['present', 'absent'].includes(status)) {
+      return next(createValidationError('date and status (present or absent) are required'));
+    }
+    if (!isValidDate(date)) return next(createValidationError('date must be a valid date', 'date'));
+
+    const [permRows] = await pool.query(
+      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+       WHERE rp.role_id = ? AND p.code IN ('attendance.manage_all', 'system.admin')`,
+      [req.user.role_id]
+    );
+    const canManageAll = permRows.length > 0;
+    const targetEmployeeId = canManageAll ? employee_id : req.user.employee_id;
+    if (!targetEmployeeId) return next(createValidationError('An employee profile is required'));
+    if (!canManageAll && Number(targetEmployeeId) !== Number(req.user.employee_id)) {
+      const error = new Error('You can only mark attendance for yourself');
+      error.status = 403;
+      error.code = 'FORBIDDEN';
+      return next(error);
+    }
+
+    const [[existing]] = await pool.query(
+      'SELECT id FROM attendances WHERE employee_id = ? AND DATE(check_in) = ? LIMIT 1',
+      [targetEmployeeId, date]
+    );
+    if (existing) {
+      const error = new Error('An attendance record already exists for this employee and date');
+      error.status = 409;
+      error.code = 'DUPLICATE_ATTENDANCE';
+      return next(error);
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO attendances (employee_id, check_in, check_out, worked_hours, status, is_manual_edit, edited_by, notes)
+       VALUES (?, ?, NULL, 0, ?, TRUE, ?, ?)`,
+      [targetEmployeeId, `${date} 00:00:00`, status, req.user.id, notes || null]
+    );
+    res.status(201).json({ message: `Attendance marked ${status}`, data: { id: result.insertId, employee_id: targetEmployeeId, date, status } });
   } catch (err) {
     next(err);
   }
@@ -391,5 +440,6 @@ module.exports = {
   getCurrentStatus,
   listAttendance,
   getSummary,
+  markAttendance,
   manualEdit
 };

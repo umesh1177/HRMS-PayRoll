@@ -48,6 +48,7 @@ async function login(req, res, next) {
         u.password_hash, 
         u.role_id, 
         u.status,
+        u.must_change_password,
         r.name AS role_name,
         e.first_name,
         e.last_name,
@@ -121,6 +122,7 @@ async function login(req, res, next) {
       last_name: user.last_name || null,
       photo_url: user.photo_url || null,
       status: user.status,
+      must_change_password: Boolean(user.must_change_password),
       permissions
     };
 
@@ -292,6 +294,7 @@ async function getMe(req, res, next) {
         u.email, 
         u.role_id, 
         u.status,
+        u.must_change_password,
         r.name AS role_name,
         e.first_name,
         e.last_name,
@@ -327,9 +330,42 @@ async function getMe(req, res, next) {
         last_name: user.last_name || null,
         photo_url: user.photo_url || null,
         status: user.status,
+        must_change_password: Boolean(user.must_change_password),
         permissions: permRows.map((p) => p.code)
       }
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Changes the authenticated user's password and clears the temporary-password gate.
+ */
+async function changePassword(req, res, next) {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password || new_password.length < 8) {
+      return next(createValidationError('Current password and a new password of at least 8 characters are required'));
+    }
+
+    const [[user]] = await pool.query(
+      "SELECT password_hash FROM users WHERE id = ? AND status = 'active'",
+      [req.user.id]
+    );
+    if (!user || !(await bcrypt.compare(current_password, user.password_hash))) {
+      const error = new Error('Current password is incorrect');
+      error.status = 400;
+      error.code = 'INVALID_PASSWORD';
+      return next(error);
+    }
+
+    const passwordHash = await bcrypt.hash(new_password, SALT_ROUNDS);
+    await pool.query(
+      'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?',
+      [passwordHash, req.user.id]
+    );
+    res.status(200).json({ message: 'Password changed successfully' });
   } catch (err) {
     next(err);
   }
@@ -340,5 +376,6 @@ module.exports = {
   createUser,
   listUsers,
   listRoles,
-  getMe
+  getMe,
+  changePassword
 };

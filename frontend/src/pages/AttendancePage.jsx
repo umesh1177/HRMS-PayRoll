@@ -43,6 +43,10 @@ export default function AttendancePage() {
   const [summary, setSummary] = useState(null);
   const [summaryEmployeeId, setSummaryEmployeeId] = useState('');
   const [employees, setEmployees] = useState([]);
+  const [markModalOpen, setMarkModalOpen] = useState(false);
+  const [markForm, setMarkForm] = useState({ employee_id: '', date: new Date().toISOString().split('T')[0], status: 'absent', notes: '' });
+  const [markError, setMarkError] = useState('');
+  const [markSubmitting, setMarkSubmitting] = useState(false);
 
   // Manual Edit Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -121,6 +125,24 @@ export default function AttendancePage() {
     }
   };
 
+  const handleMarkAttendance = async (event) => {
+    event.preventDefault();
+    setMarkError('');
+    setMarkSubmitting(true);
+    try {
+      await axiosClient.post('/attendance/mark', {
+        ...markForm,
+        employee_id: canManageAll ? Number(markForm.employee_id) : undefined
+      });
+      setMarkModalOpen(false);
+      fetchAttendance();
+    } catch (err) {
+      setMarkError(err.response?.data?.error?.message || 'Unable to mark attendance.');
+    } finally {
+      setMarkSubmitting(false);
+    }
+  };
+
   return (
     <div className="mt-6 flex flex-col gap-6">
       {/* Self-service punch widget */}
@@ -173,7 +195,28 @@ export default function AttendancePage() {
         totalPages={totalPages}
         onPageChange={setPage}
         onEdit={handleOpenEdit}
+        actionButton={canManageAll && (
+          <Button color="indigo" size="sm" onClick={() => { setMarkError(''); setMarkModalOpen(true); }}>Mark Attendance</Button>
+        )}
       />
+
+      <Modal open={markModalOpen} onClose={() => !markSubmitting && setMarkModalOpen(false)} title="Mark Attendance" size="sm" footer={null}>
+        <form onSubmit={handleMarkAttendance} className="flex flex-col gap-4">
+          {markError && <Alert color="red" variant="gradient">{markError}</Alert>}
+          {canManageAll && (
+            <select value={markForm.employee_id} onChange={(event) => setMarkForm({ ...markForm, employee_id: event.target.value })} className="h-10 rounded-md border border-blue-gray-200 px-3 text-sm" required>
+              <option value="">Select employee</option>
+              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name || `${employee.first_name} ${employee.last_name}`}</option>)}
+            </select>
+          )}
+          <Input type="date" label="Date" value={markForm.date} onChange={(event) => setMarkForm({ ...markForm, date: event.target.value })} required />
+          <select value={markForm.status} onChange={(event) => setMarkForm({ ...markForm, status: event.target.value })} className="h-10 rounded-md border border-blue-gray-200 px-3 text-sm">
+            <option value="absent">Absent</option><option value="present">Present</option>
+          </select>
+          <Input label="Notes" value={markForm.notes} onChange={(event) => setMarkForm({ ...markForm, notes: event.target.value })} />
+          <div className="flex justify-end gap-2"><Button variant="text" onClick={() => setMarkModalOpen(false)}>Cancel</Button><Button type="submit" color="indigo" disabled={markSubmitting}>{markSubmitting ? 'Saving...' : 'Save Mark'}</Button></div>
+        </form>
+      </Modal>
 
       {/* Manual HR Correction Modal */}
       {selectedRecord && (

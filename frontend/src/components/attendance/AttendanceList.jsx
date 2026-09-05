@@ -51,8 +51,7 @@ export default function AttendanceList({
     });
   };
 
-  const columns = [
-    {
+  const employeeColumn = {
       key: 'employee_name',
       label: 'Employee',
       render: (row) => (
@@ -63,7 +62,8 @@ export default function AttendanceList({
           </span>
         </div>
       )
-    },
+    };
+  const columns = [
     {
       key: 'check_in',
       label: 'Check In',
@@ -147,6 +147,7 @@ export default function AttendanceList({
       )
     }
   ];
+  if (canManageAll) columns.unshift(employeeColumn);
 
   return (
     <DataTable

@@ -22,6 +22,7 @@ router.post('/check-in', requirePermission('attendance.create_own'), attendanceC
 router.post('/check-out', requirePermission('attendance.create_own'), attendanceController.checkOut);
 router.get('/current', requirePermission('attendance.view_own'), attendanceController.getCurrentStatus);
 router.get('/summary', requirePermission('attendance.view_own'), attendanceController.getSummary);
+router.post('/mark', requirePermission('attendance.manage_all'), attendanceController.markAttendance);
 
 // History listing (scoped internally to own records unless user has attendance.manage_all)
 router.get('/', attendanceController.listAttendance);

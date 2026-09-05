@@ -86,6 +86,9 @@ async function approveTimeOffRequest(requestId, approverUserId) {
 
     const request = rows[0];
 
+    if (request.status === 'refused') {
+      throw new Error('This request has already been refused and cannot be approved');
+    }
     if (request.status !== 'submitted') {
       throw new Error('Only submitted time off requests can be approved');
     }
@@ -168,18 +171,60 @@ async function approveTimeOffRequest(requestId, approverUserId) {
  * @sideEffects Updates `time_off_requests`
  */
 async function refuseTimeOffRequest(requestId, approverUserId, refusalReason) {
-  const [result] = await pool.query(
-    `UPDATE time_off_requests 
-     SET status = 'refused', approver_id = ?, decided_at = NOW(), reason = COALESCE(?, reason)
-     WHERE id = ?`,
-    [approverUserId, refusalReason || null, requestId]
-  );
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query(
+      `SELECT r.id, r.employee_id, r.time_off_type_id, r.allocation_id, r.duration, r.status,
+              t.requires_allocation
+       FROM time_off_requests r
+       JOIN time_off_types t ON r.time_off_type_id = t.id
+       WHERE r.id = ? FOR UPDATE`,
+      [requestId]
+    );
+    if (rows.length === 0) throw new Error(`Time off request #${requestId} not found`);
+    const request = rows[0];
+    if (request.status === 'refused') throw new Error('This request has already been refused');
+    if (!['submitted', 'approved'].includes(request.status)) {
+      throw new Error('Only submitted or approved time off requests can be refused');
+    }
 
-  if (result.affectedRows === 0) {
-    throw new Error(`Time off request #${requestId} not found`);
+    const [approverRows] = await connection.query(
+      `SELECT u.employee_id, r.name AS role_name, e.manager_id
+       FROM users u JOIN roles r ON u.role_id = r.id
+       LEFT JOIN employees e ON e.id = ? WHERE u.id = ?`,
+      [request.employee_id, approverUserId]
+    );
+    const approver = approverRows[0];
+    if (!approver) throw new Error('Approver account not found');
+    if (approver.employee_id === request.employee_id) throw new Error('You cannot refuse your own time off request');
+    if (approver.role_name !== 'Admin' && approver.employee_id !== approver.manager_id) {
+      throw new Error('Only an administrator or the employee manager can refuse this request');
+    }
+
+    if (request.status === 'approved' && request.requires_allocation && request.allocation_id) {
+      const [allocRows] = await connection.query(
+        'SELECT id, taken_amount FROM time_off_allocations WHERE id = ? FOR UPDATE',
+        [request.allocation_id]
+      );
+      if (allocRows.length === 0) throw new Error(`Linked allocation #${request.allocation_id} not found`);
+      const newTaken = Number(allocRows[0].taken_amount) - Number(request.duration);
+      if (newTaken < 0) throw new Error('Cannot reverse leave: allocation balance is already inconsistent');
+      await connection.query('UPDATE time_off_allocations SET taken_amount = ? WHERE id = ?', [newTaken, request.allocation_id]);
+    }
+
+    await connection.query(
+      `UPDATE time_off_requests SET status = 'refused', approver_id = ?, decided_at = NOW(), reason = COALESCE(?, reason) WHERE id = ?`,
+      [approverUserId, refusalReason || null, requestId]
+    );
+    await connection.commit();
+    return { success: true, message: 'Time off request refused' };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
   }
-
-  return { success: true, message: 'Time off request refused' };
 }
 
 module.exports = {

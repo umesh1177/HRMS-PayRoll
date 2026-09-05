@@ -29,9 +29,11 @@ import {
   TableCellsIcon,
   ReceiptPercentIcon,
   UsersIcon,
+  UserCircleIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
+import ProfileModal from './ProfileModal';
 
 /**
  * Sidebar navigation component for PeoplePay360.
@@ -44,6 +46,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function Sidebar({ isOpen = true, onClose }) {
   const { hasPermission, user } = useAuth();
   const [payrollMenuOpen, setPayrollMenuOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Define navigation groups matching PeoplePay360 domain modules
   const navItems = [
@@ -221,16 +224,20 @@ export default function Sidebar({ isOpen = true, onClose }) {
         </div>
       </div>
 
-      {/* User Info Footer in Sidebar */}
+      {/* Profile button */}
       {user && (
-        <div className="p-4 m-3 rounded-lg bg-white/5 border border-white/10 text-xs">
-          <p className="text-blue-gray-400">Logged in as:</p>
-          <p className="font-semibold text-white truncate">{user.email}</p>
-          <span className="inline-block mt-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold uppercase text-[10px]">
-            {user.role}
+        <button type="button" onClick={() => setProfileOpen(true)} className="m-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-left transition hover:border-indigo-400/50 hover:bg-indigo-500/10">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-200">
+            <UserCircleIcon className="h-6 w-6" />
           </span>
-        </div>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-white">My Profile</span>
+            <span className="mt-0.5 block truncate text-xs text-blue-gray-300">{user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.email}</span>
+          </span>
+          <span className="text-xs font-semibold text-indigo-300">View</span>
+        </button>
       )}
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} user={user} />
     </aside>
   );
 }

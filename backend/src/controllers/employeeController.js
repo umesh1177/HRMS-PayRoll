@@ -325,6 +325,29 @@ async function updateEmployee(req, res, next) {
       return next(error);
     }
 
+    const [permissionRows] = await pool.query(
+      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+       WHERE rp.role_id = ? AND (p.code = 'employee.manage' OR p.code = 'system.admin')`,
+      [req.user.role_id]
+    );
+    const canManageAll = permissionRows.length > 0;
+    if (!canManageAll) {
+      if (Number(id) !== Number(req.user.employee_id)) {
+        const error = new Error('You can only update your own employee profile');
+        error.status = 403;
+        error.code = 'FORBIDDEN';
+        return next(error);
+      }
+      const restrictedFields = [employee_code, first_name, last_name, email, department_id, job_position_id, manager_id, working_schedule_id, status, date_joined, date_left]
+        .some((value) => value !== undefined);
+      if (restrictedFields) {
+        const error = new Error('Only phone and photo_url can be updated from your own profile');
+        error.status = 403;
+        error.code = 'FORBIDDEN';
+        return next(error);
+      }
+    }
+
     const updateSql = `
       UPDATE employees SET
         employee_code = COALESCE(?, employee_code),

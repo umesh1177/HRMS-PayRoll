@@ -61,6 +61,35 @@ function requirePermission(permissionCode) {
   };
 }
 
+function requireAnyPermission(permissionCodes) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || !req.user.role_id) {
+        const error = new Error('Authentication required before authorization check');
+        error.status = 401;
+        error.code = 'UNAUTHORIZED';
+        return next(error);
+      }
+      const placeholders = permissionCodes.map(() => '?').join(', ');
+      const [rows] = await pool.query(
+        `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+         WHERE rp.role_id = ? AND (p.code IN (${placeholders}) OR p.code = 'system.admin') LIMIT 1`,
+        [req.user.role_id, ...permissionCodes]
+      );
+      if (rows.length === 0) {
+        const error = new Error('Forbidden: required permission is missing');
+        error.status = 403;
+        error.code = 'FORBIDDEN';
+        return next(error);
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
 module.exports = {
-  requirePermission
+  requirePermission,
+  requireAnyPermission
 };

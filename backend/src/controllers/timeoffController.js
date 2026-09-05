@@ -270,6 +270,7 @@ async function listRequests(req, res, next) {
         r.time_off_type_id,
         t.name AS type_name,
         t.color AS type_color,
+        t.unit AS type_unit,
         r.allocation_id,
         r.start_date,
         r.end_date,

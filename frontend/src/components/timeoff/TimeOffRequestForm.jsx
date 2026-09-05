@@ -44,6 +44,7 @@ export default function TimeOffRequestForm({
   const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const today = new Date().toISOString().split('T')[0];
 
   // Calculate live days duration
   const getDuration = () => {
@@ -55,7 +56,9 @@ export default function TimeOffRequestForm({
     return Math.max(1, diff);
   };
 
-  const dateError = validateDateRange(formData.start_date, formData.end_date, 'Start Date', 'End Date');
+  const dateError = formData.start_date < today
+    ? 'Start date cannot be earlier than today. Please choose today or a future date.'
+    : validateDateRange(formData.start_date, formData.end_date, 'Start date', 'end date');
   const duration = getDuration();
 
   const handleChange = (e) => {
@@ -156,6 +159,7 @@ export default function TimeOffRequestForm({
               value={formData.start_date}
               onChange={handleChange}
               onBlur={() => handleBlur('start_date')}
+              min={today}
               required
             />
           </div>
@@ -170,6 +174,7 @@ export default function TimeOffRequestForm({
               value={formData.end_date}
               onChange={handleChange}
               onBlur={() => handleBlur('end_date')}
+              min={formData.start_date || today}
               error={!!(touched.end_date && dateError)}
               required
             />
