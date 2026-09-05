@@ -3,10 +3,7 @@
  * 
  * RESPONSIBILITY:
  * Collects employee time-off requests (leave type, date range, reason) and submits
- * them to POST /api/v1/timeoff/requests.
- * 
- * NOT RESPONSIBLE FOR:
- * Approving requests or allocating balance credits.
+ * them to POST /api/v1/timeoff/requests with inline duration and date validation.
  */
 
 import React, { useState } from 'react';
@@ -14,12 +11,12 @@ import {
   Input,
   Button,
   Alert,
-  Typography,
-  Textarea
+  Typography
 } from '@material-tailwind/react';
-import { InformationCircleIcon, CalendarDaysIcon } from '@heroicons/react/24/solid';
+import { InformationCircleIcon } from '@heroicons/react/24/solid';
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
+import { validateDateRange } from '../../utils/formValidators';
 
 /**
  * Time Off Request Form Modal.
@@ -44,6 +41,7 @@ export default function TimeOffRequestForm({
     reason: ''
   });
 
+  const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -52,17 +50,32 @@ export default function TimeOffRequestForm({
     if (!formData.start_date || !formData.end_date) return 0;
     const start = new Date(formData.start_date);
     const end = new Date(formData.end_date);
-    const diff = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
+    if (end < start) return 0;
+    const diff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     return Math.max(1, diff);
   };
+
+  const dateError = validateDateRange(formData.start_date, formData.end_date, 'Start Date', 'End Date');
+  const duration = getDuration();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setTouched({ start_date: true, end_date: true });
+
+    if (dateError) {
+      setErrorMessage(dateError);
+      return;
+    }
+
     setErrorMessage('');
     setSubmitting(true);
 
@@ -96,7 +109,11 @@ export default function TimeOffRequestForm({
           <Button variant="text" color="blue-gray" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button color="indigo" onClick={handleSubmit} disabled={submitting}>
+          <Button
+            color="indigo"
+            onClick={handleSubmit}
+            disabled={submitting || !!dateError || duration <= 0}
+          >
             {submitting ? 'Submitting...' : 'Submit Request'}
           </Button>
         </>
@@ -122,7 +139,7 @@ export default function TimeOffRequestForm({
           >
             {types.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.name} ({t.requires_allocation ? 'Requires Allocation' : 'No Allocation'})
+                {t.name} ({t.requires_allocation ? 'Quota Allocation' : 'No Allocation'})
               </option>
             ))}
           </select>
@@ -138,6 +155,7 @@ export default function TimeOffRequestForm({
               name="start_date"
               value={formData.start_date}
               onChange={handleChange}
+              onBlur={() => handleBlur('start_date')}
               required
             />
           </div>
@@ -151,15 +169,21 @@ export default function TimeOffRequestForm({
               name="end_date"
               value={formData.end_date}
               onChange={handleChange}
+              onBlur={() => handleBlur('end_date')}
+              error={!!(touched.end_date && dateError)}
               required
             />
           </div>
         </div>
 
+        {touched.end_date && dateError && (
+          <p className="text-[11px] text-red-500 font-medium -mt-2">{dateError}</p>
+        )}
+
         <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-between">
           <span className="text-xs font-medium text-indigo-800">Calculated Leave Duration:</span>
-          <span className="font-bold text-sm text-indigo-900 font-mono">
-            {getDuration()} Day(s)
+          <span className={`font-bold text-sm font-mono ${duration <= 0 ? 'text-red-600' : 'text-indigo-900'}`}>
+            {duration > 0 ? `${duration} Day(s)` : 'Invalid dates'}
           </span>
         </div>
 

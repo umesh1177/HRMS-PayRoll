@@ -28,6 +28,7 @@ import {
 } from '@heroicons/react/24/solid';
 import Modal from '../common/Modal';
 import axiosClient from '../../api/axiosClient';
+import { validatePayrun } from '../../utils/formValidators';
 
 /**
  * Payrun Creation Wizard.
@@ -55,6 +56,9 @@ export default function PayrunForm({
     period_end: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()}`
   });
 
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
   // Step 2: Employee Selection State
   const [eligibleEmployees, setEligibleEmployees] = useState([]);
   const [selectedEmpIds, setSelectedEmpIds] = useState(new Set());
@@ -74,13 +78,27 @@ export default function PayrunForm({
         salary_structure_id: structures.length > 0 ? String(structures[0].id) : '1'
       }));
       setErrorMessage('');
+      setErrors({});
+      setTouched({});
       setSelectedEmpIds(new Set());
     }
   }, [open, structures]);
 
   const handleScopeChange = (e) => {
     const { name, value } = e.target;
-    setScopeData((prev) => ({ ...prev, [name]: value }));
+    const updated = { ...scopeData, [name]: value };
+    setScopeData(updated);
+
+    if (touched[name]) {
+      const vErrors = validatePayrun(updated);
+      setErrors(vErrors);
+    }
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const vErrors = validatePayrun(scopeData);
+    setErrors(vErrors);
   };
 
   /**
@@ -88,6 +106,19 @@ export default function PayrunForm({
    */
   const handleProceedToStep2 = async (e) => {
     e.preventDefault();
+    setTouched({
+      name: true,
+      salary_structure_id: true,
+      period_start: true,
+      period_end: true
+    });
+
+    const vErrors = validatePayrun(scopeData);
+    setErrors(vErrors);
+    if (Object.keys(vErrors).length > 0) {
+      return;
+    }
+
     setErrorMessage('');
     setLoadingEmployees(true);
 
@@ -217,9 +248,13 @@ export default function PayrunForm({
               name="name"
               value={scopeData.name}
               onChange={handleScopeChange}
+              onBlur={() => handleBlur('name')}
               placeholder="e.g. September 2026 Payroll"
-              required
+              error={touched.name && !!errors.name}
             />
+            {touched.name && errors.name && (
+              <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+            )}
           </div>
 
           <div>
@@ -230,7 +265,12 @@ export default function PayrunForm({
               name="salary_structure_id"
               value={scopeData.salary_structure_id}
               onChange={handleScopeChange}
-              className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
+              onBlur={() => handleBlur('salary_structure_id')}
+              className={`w-full h-10 px-3 rounded-md border text-sm focus:outline-none ${
+                touched.salary_structure_id && errors.salary_structure_id
+                  ? 'border-red-500'
+                  : 'border-blue-gray-200 focus:border-indigo-600'
+              }`}
             >
               {structures.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -238,6 +278,9 @@ export default function PayrunForm({
                 </option>
               ))}
             </select>
+            {touched.salary_structure_id && errors.salary_structure_id && (
+              <p className="text-xs text-red-500 mt-1">{errors.salary_structure_id}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -250,8 +293,12 @@ export default function PayrunForm({
                 name="period_start"
                 value={scopeData.period_start}
                 onChange={handleScopeChange}
-                required
+                onBlur={() => handleBlur('period_start')}
+                error={touched.period_start && !!errors.period_start}
               />
+              {touched.period_start && errors.period_start && (
+                <p className="text-xs text-red-500 mt-1">{errors.period_start}</p>
+              )}
             </div>
 
             <div>
@@ -263,8 +310,12 @@ export default function PayrunForm({
                 name="period_end"
                 value={scopeData.period_end}
                 onChange={handleScopeChange}
-                required
+                onBlur={() => handleBlur('period_end')}
+                error={touched.period_end && !!errors.period_end}
               />
+              {touched.period_end && errors.period_end && (
+                <p className="text-xs text-red-500 mt-1">{errors.period_end}</p>
+              )}
             </div>
           </div>
         </form>

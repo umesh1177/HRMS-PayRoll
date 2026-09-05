@@ -28,6 +28,7 @@ import DataTable from '../common/DataTable';
 import Modal from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
+import { isValidCode, isValidPositiveNumber } from '../../utils/formValidators';
 
 /**
  * Salary Rule List Component.
@@ -57,8 +58,47 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
     active: true
   });
 
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const validateRuleForm = (data) => {
+    const errs = {};
+    if (!data.name || data.name.trim().length < 2) {
+      errs.name = 'Rule name must be at least 2 characters.';
+    }
+
+    if (!data.code || !data.code.trim()) {
+      errs.code = 'Rule code is required.';
+    } else if (!isValidCode(data.code.trim())) {
+      errs.code = 'Rule code must be 2-30 uppercase alphanumeric characters or underscores (e.g. HRA, BASIC_01).';
+    }
+
+    if (data.computation_method === 'fixed' && data.fixed_amount !== '' && data.fixed_amount !== null && data.fixed_amount !== undefined) {
+      if (isNaN(Number(data.fixed_amount)) || Number(data.fixed_amount) < 0) {
+        errs.fixed_amount = 'Fixed amount must be a positive number or zero.';
+      }
+    }
+
+    if (data.computation_method === 'percentage') {
+      const pct = Number(data.percentage_value);
+      if (isNaN(pct) || pct < 0 || pct > 1.0) {
+        errs.percentage_value = 'Percentage must be between 0.00 and 1.00 (e.g. 0.40 for 40%).';
+      }
+      if (!data.percentage_basis_code) {
+        errs.percentage_basis_code = 'Please select a percentage basis rule code.';
+      }
+    }
+
+    if (data.computation_method === 'formula') {
+      if (!data.formula || data.formula.trim().length < 2) {
+        errs.formula = 'Formula mathematical expression is required.';
+      }
+    }
+
+    return errs;
+  };
 
   const handleOpenCreate = () => {
     setSelectedRule(null);
@@ -73,6 +113,8 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
       formula: 'BASIC * 0.10 + 200',
       active: true
     });
+    setErrors({});
+    setTouched({});
     setErrorMessage('');
     setModalOpen(true);
   };
@@ -90,33 +132,63 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
       formula: rule.formula || '',
       active: !!rule.active
     });
+    setErrors({});
+    setTouched({});
     setErrorMessage('');
     setModalOpen(true);
   };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    const formattedValue = name === 'code' ? value.toUpperCase() : (type === 'checkbox' ? checked : value);
+    const updated = {
+      ...formData,
+      [name]: formattedValue
+    };
+    setFormData(updated);
+
+    if (touched[name]) {
+      const vErrors = validateRuleForm(updated);
+      setErrors(vErrors);
+    }
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const vErrors = validateRuleForm(formData);
+    setErrors(vErrors);
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    setTouched({
+      name: true,
+      code: true,
+      fixed_amount: true,
+      percentage_value: true,
+      percentage_basis_code: true,
+      formula: true
+    });
+
+    const validationErrors = validateRuleForm(formData);
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
     setErrorMessage('');
     setSubmitting(true);
 
     try {
       const payload = {
-        name: formData.name,
+        name: formData.name.trim(),
         code: formData.code.toUpperCase().trim(),
         category: formData.category,
         computation_method: formData.computation_method,
-        fixed_amount: formData.computation_method === 'fixed' ? parseFloat(formData.fixed_amount || 0) : null,
+        fixed_amount: formData.computation_method === 'fixed' ? (formData.fixed_amount !== '' ? parseFloat(formData.fixed_amount) : null) : null,
         percentage_value: formData.computation_method === 'percentage' ? parseFloat(formData.percentage_value || 0) : null,
         percentage_basis_code: formData.computation_method === 'percentage' ? formData.percentage_basis_code : null,
-        formula: formData.computation_method === 'formula' ? formData.formula : null,
+        formula: formData.computation_method === 'formula' ? formData.formula.trim() : null,
         active: formData.active
       };
 
@@ -281,9 +353,13 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
+                onBlur={() => handleBlur('name')}
                 placeholder="e.g. House Rent Allowance"
-                required
+                error={touched.name && !!errors.name}
               />
+              {touched.name && errors.name && (
+                <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+              )}
             </div>
 
             <div>
@@ -294,9 +370,13 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                 name="code"
                 value={formData.code}
                 onChange={handleChange}
+                onBlur={() => handleBlur('code')}
                 placeholder="e.g. HRA"
-                required
+                error={touched.code && !!errors.code}
               />
+              {touched.code && errors.code && (
+                <p className="text-xs text-red-500 mt-1">{errors.code}</p>
+              )}
             </div>
 
             <div>
@@ -347,8 +427,13 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                 name="fixed_amount"
                 value={formData.fixed_amount}
                 onChange={handleChange}
+                onBlur={() => handleBlur('fixed_amount')}
                 placeholder="e.g. 800.00"
+                error={touched.fixed_amount && !!errors.fixed_amount}
               />
+              {touched.fixed_amount && errors.fixed_amount && (
+                <p className="text-xs text-red-500 mt-1">{errors.fixed_amount}</p>
+              )}
             </div>
           )}
 
@@ -364,9 +449,13 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                   name="percentage_value"
                   value={formData.percentage_value}
                   onChange={handleChange}
+                  onBlur={() => handleBlur('percentage_value')}
                   placeholder="0.400"
-                  required
+                  error={touched.percentage_value && !!errors.percentage_value}
                 />
+                {touched.percentage_value && errors.percentage_value && (
+                  <p className="text-xs text-red-500 mt-1">{errors.percentage_value}</p>
+                )}
               </div>
 
               <div>
@@ -377,7 +466,12 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                   name="percentage_basis_code"
                   value={formData.percentage_basis_code}
                   onChange={handleChange}
-                  className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
+                  onBlur={() => handleBlur('percentage_basis_code')}
+                  className={`w-full h-10 px-3 rounded-md border text-sm focus:outline-none ${
+                    touched.percentage_basis_code && errors.percentage_basis_code
+                      ? 'border-red-500'
+                      : 'border-blue-gray-200 focus:border-indigo-600'
+                  }`}
                 >
                   <option value="BASIC">BASIC (Contract Basic Wage)</option>
                   <option value="WAGE">WAGE (Agreed Contract Wage)</option>
@@ -389,6 +483,9 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                       </option>
                     ))}
                 </select>
+                {touched.percentage_basis_code && errors.percentage_basis_code && (
+                  <p className="text-xs text-red-500 mt-1">{errors.percentage_basis_code}</p>
+                )}
               </div>
             </div>
           )}
@@ -402,9 +499,13 @@ export default function SalaryRuleList({ rules = [], loading = false, onRuleSave
                 name="formula"
                 value={formData.formula}
                 onChange={handleChange}
+                onBlur={() => handleBlur('formula')}
                 placeholder="e.g. BASIC * 0.15 + SPECIAL - PF"
-                required
+                error={touched.formula && !!errors.formula}
               />
+              {touched.formula && errors.formula && (
+                <p className="text-xs text-red-500">{errors.formula}</p>
+              )}
               <span className="text-[11px] text-blue-gray-500">
                 Variables: Reference prior rule codes in uppercase (e.g. <code className="text-indigo-600">BASIC</code>, <code className="text-indigo-600">HRA</code>, <code className="text-indigo-600">WORKED_DAYS</code>).
               </span>

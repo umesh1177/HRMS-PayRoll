@@ -12,6 +12,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const { isValidEmail, createValidationError } = require('../utils/validators');
 
 const SALT_ROUNDS = 10;
 const JWT_EXPIRATION = '24h';
@@ -30,10 +31,11 @@ async function login(req, res, next) {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      const error = new Error('Email and password are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('Email and password are required', 'email'));
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createValidationError('Please provide a valid email address format (e.g. user@company.com)', 'email'));
     }
 
     // Query user with joined role and optional employee profile
@@ -145,14 +147,19 @@ async function createUser(req, res, next) {
     const { email, password, role_id, employee_id, status } = req.body;
 
     if (!email || !password || !role_id) {
-      const error = new Error('Email, password, and role_id are required fields');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('Email, password, and role_id are required fields'));
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createValidationError('Please provide a valid email address format', 'email'));
+    }
+
+    if (typeof password !== 'string' || password.length < 6) {
+      return next(createValidationError('Password must be at least 6 characters long', 'password'));
     }
 
     // Check email uniqueness
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email.trim()]);
     if (existing.length > 0) {
       const error = new Error(`User with email '${email}' already exists`);
       error.status = 409;

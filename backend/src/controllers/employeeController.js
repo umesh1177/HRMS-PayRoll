@@ -11,6 +11,14 @@
  */
 
 const pool = require('../config/db');
+const {
+  isValidEmail,
+  isValidPhone,
+  isValidDate,
+  isValidDateRange,
+  isValidEnum,
+  createValidationError
+} = require('../utils/validators');
 
 /**
  * Lists employees with search, department filtering, status filtering, and pagination.
@@ -196,10 +204,35 @@ async function createEmployee(req, res, next) {
     } = req.body;
 
     if (!employee_code || !first_name || !last_name || !email || !date_joined) {
-      const error = new Error('employee_code, first_name, last_name, email, and date_joined are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('employee_code, first_name, last_name, email, and date_joined are required'));
+    }
+
+    if (first_name.trim().length < 2) {
+      return next(createValidationError('First name must contain at least 2 characters', 'first_name'));
+    }
+
+    if (last_name.trim().length < 2) {
+      return next(createValidationError('Last name must contain at least 2 characters', 'last_name'));
+    }
+
+    if (!isValidEmail(email)) {
+      return next(createValidationError('Please provide a valid work email address format', 'email'));
+    }
+
+    if (phone && !isValidPhone(phone)) {
+      return next(createValidationError('Please provide a valid phone number (7-20 digits)', 'phone'));
+    }
+
+    if (!isValidDate(date_joined)) {
+      return next(createValidationError('Invalid date_joined format', 'date_joined'));
+    }
+
+    if (date_left && (!isValidDate(date_left) || !isValidDateRange(date_joined, date_left))) {
+      return next(createValidationError('date_left must be a valid date on or after date_joined', 'date_left'));
+    }
+
+    if (status && !isValidEnum(status, ['active', 'inactive', 'terminated', 'suspended'])) {
+      return next(createValidationError('Invalid status. Allowed: active, inactive, terminated, suspended', 'status'));
     }
 
     const insertSql = `

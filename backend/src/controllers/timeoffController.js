@@ -11,6 +11,13 @@
 
 const pool = require('../config/db');
 const { calculateLeaveDuration, approveTimeOffRequest, refuseTimeOffRequest } = require('../services/timeoffService');
+const {
+  isValidDate,
+  isValidDateRange,
+  isValidNumber,
+  isValidEnum,
+  createValidationError
+} = require('../utils/validators');
 
 // ---------------------------------------------------------------------
 // 1. TIME OFF TYPES
@@ -310,26 +317,70 @@ async function createRequest(req, res, next) {
     const targetEmployeeId = employee_id || req.user.employee_id;
 
     if (!targetEmployeeId || !time_off_type_id || !start_date || !end_date) {
-      const error = new Error('employee_id, time_off_type_id, start_date, and end_date are required');
-      error.status = 400;
-      error.code = 'VALIDATION_ERROR';
-      return next(error);
+      return next(createValidationError('employee_id, time_off_type_id, start_date, and end_date are required'));
+    }
+
+    if (!isValidDate(start_date) || !isValidDate(end_date)) {
+      return next(createValidationError('Invalid date format for start_date or end_date'));
+    }
+
+    if (!isValidDateRange(start_date, end_date)) {
+      return next(createValidationError('end_date must be on or after start_date', 'end_date'));
     }
 
     const duration = calculateLeaveDuration(start_date, end_date);
+    if (duration <= 0) {
+      return next(createValidationError('Time-off duration must be at least 1 day', 'duration'));
+    }
+
+    // Check for overlapping pending or approved requests for this employee
+    const [overlapRows] = await pool.query(
+      `SELECT id FROM time_off_requests 
+       WHERE employee_id = ? AND status IN ('submitted', 'approved') 
+       AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?) OR (start_date >= ? AND end_date <= ?))
+       LIMIT 1`,
+      [targetEmployeeId, start_date, start_date, end_date, end_date, start_date, end_date]
+    );
+
+    if (overlapRows.length > 0) {
+      const error = new Error(`You already have an active time-off request (#${overlapRows[0].id}) during this date range`);
+      error.status = 409;
+      error.code = 'LEAVE_OVERLAP_CONFLICT';
+      return next(error);
+    }
+
+    // Check leave type configuration
+    const [[leaveType]] = await pool.query('SELECT * FROM time_off_types WHERE id = ?', [time_off_type_id]);
+    if (!leaveType) {
+      return next(createValidationError(`Time off type #${time_off_type_id} does not exist`, 'time_off_type_id'));
+    }
+
     const requestStatus = status || 'submitted'; // Default to submitted for approval
 
-    // If type requires allocation and allocation_id wasn't passed, find active allocation
+    // If type requires allocation and allocation_id wasn't passed, find active allocation and check remaining balance
     let resolvedAllocationId = allocation_id || null;
-    if (!resolvedAllocationId) {
+    if (leaveType.requires_allocation) {
       const [allocRows] = await pool.query(
-        `SELECT id FROM time_off_allocations 
+        `SELECT id, allocated_amount, taken_amount, (allocated_amount - taken_amount) AS remaining_amount 
+         FROM time_off_allocations 
          WHERE employee_id = ? AND time_off_type_id = ? AND status = 'approved' AND (valid_to >= ? OR valid_to IS NULL)
+         ORDER BY valid_from ASC
          LIMIT 1`,
         [targetEmployeeId, time_off_type_id, start_date]
       );
-      if (allocRows.length > 0) {
-        resolvedAllocationId = allocRows[0].id;
+
+      if (allocRows.length === 0) {
+        return next(createValidationError(`No active leave quota allocated for ${leaveType.name}. Please contact HR to allocate leave days.`, 'allocation_id'));
+      }
+
+      const alloc = allocRows[0];
+      resolvedAllocationId = alloc.id;
+
+      if (Number(alloc.remaining_amount) < duration) {
+        return next(createValidationError(
+          `Requested duration (${duration} days) exceeds available ${leaveType.name} balance (${alloc.remaining_amount} remaining).`,
+          'duration'
+        ));
       }
     }
 

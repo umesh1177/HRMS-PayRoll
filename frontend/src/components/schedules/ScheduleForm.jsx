@@ -65,6 +65,8 @@ export default function ScheduleForm({
     }))
   );
 
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -114,6 +116,8 @@ export default function ScheduleForm({
         }))
       );
     }
+    setErrors({});
+    setTouched(false);
     setErrorMessage('');
   }, [schedule, open]);
 
@@ -124,6 +128,44 @@ export default function ScheduleForm({
     const [eh, em] = cfg.end_time.split(':').map(Number);
     const totalMinutes = (eh * 60 + em) - (sh * 60 + sm) - (Number(cfg.break_minutes) || 0);
     return Math.max(0, Number((totalMinutes / 60).toFixed(2)));
+  };
+
+  // Validation function
+  const validateForm = () => {
+    const errs = {};
+    if (!name || name.trim().length < 2) {
+      errs.name = 'Schedule name must be at least 2 characters.';
+    }
+
+    const enabledDays = dayConfigs.filter((d) => d.enabled);
+    if (enabledDays.length === 0) {
+      errs.days = 'Please select at least one working day for this schedule.';
+    }
+
+    const dayErrs = {};
+    enabledDays.forEach((d) => {
+      if (!d.start_time || !d.end_time) {
+        dayErrs[d.day_of_week] = 'Start and end time are required.';
+        return;
+      }
+      const [sh, sm] = d.start_time.split(':').map(Number);
+      const [eh, em] = d.end_time.split(':').map(Number);
+      const spanMinutes = (eh * 60 + em) - (sh * 60 + sm);
+
+      if (spanMinutes <= 0) {
+        dayErrs[d.day_of_week] = 'End time must be after start time.';
+      } else if (Number(d.break_minutes) < 0) {
+        dayErrs[d.day_of_week] = 'Break cannot be negative.';
+      } else if (Number(d.break_minutes) >= spanMinutes) {
+        dayErrs[d.day_of_week] = 'Break exceeds shift duration.';
+      }
+    });
+
+    if (Object.keys(dayErrs).length > 0) {
+      errs.dayDetails = dayErrs;
+    }
+
+    return errs;
   };
 
   // Live weekly total hours
@@ -144,7 +186,16 @@ export default function ScheduleForm({
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    setTouched(true);
+
+    const validationErrors = validateForm();
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
     setErrorMessage('');
     setSubmitting(true);
 
@@ -159,7 +210,7 @@ export default function ScheduleForm({
         }));
 
       const payload = {
-        name,
+        name: name.trim(),
         schedule_type: scheduleType,
         status,
         lines: activeLines
@@ -206,17 +257,25 @@ export default function ScheduleForm({
         )}
 
         {/* Schedule Name and Type */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
           <div>
             <Typography variant="small" color="blue-gray" className="font-semibold mb-1 text-xs">
               Schedule Name *
             </Typography>
             <Input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (touched && errors.name) {
+                  setErrors((prev) => ({ ...prev, name: undefined }));
+                }
+              }}
               placeholder="e.g. 40 Hours Standard"
-              required
+              error={touched && !!errors.name}
             />
+            {touched && errors.name && (
+              <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+            )}
           </div>
 
           <div>
@@ -245,9 +304,14 @@ export default function ScheduleForm({
 
         {/* Day-of-Week x Time-Range Shift Matrix */}
         <div className="mt-2">
-          <Typography variant="small" color="blue-gray" className="font-bold text-xs uppercase tracking-wide mb-2">
-            Weekly Shift Matrix & Break Allowances
-          </Typography>
+          <div className="flex items-center justify-between mb-2">
+            <Typography variant="small" color="blue-gray" className="font-bold text-xs uppercase tracking-wide">
+              Weekly Shift Matrix & Break Allowances
+            </Typography>
+            {touched && errors.days && (
+              <p className="text-xs text-red-500 font-semibold">{errors.days}</p>
+            )}
+          </div>
 
           <div className="border border-blue-gray-100 rounded-lg overflow-hidden">
             <table className="w-full text-left text-xs">
@@ -263,8 +327,9 @@ export default function ScheduleForm({
               <tbody className="divide-y divide-blue-gray-50">
                 {dayConfigs.map((d) => {
                   const dayHours = calculateDayHours(d);
+                  const dayError = touched && errors.dayDetails?.[d.day_of_week];
                   return (
-                    <tr key={d.day_of_week} className={d.enabled ? 'bg-white' : 'bg-blue-gray-50/30 opacity-60'}>
+                    <tr key={d.day_of_week} className={`${d.enabled ? 'bg-white' : 'bg-blue-gray-50/30 opacity-60'} ${dayError ? 'bg-red-50/40' : ''}`}>
                       <td className="p-3">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
@@ -277,6 +342,9 @@ export default function ScheduleForm({
                             {d.label}
                           </span>
                         </label>
+                        {dayError && (
+                          <span className="block text-[11px] text-red-500 mt-1 font-medium">{dayError}</span>
+                        )}
                       </td>
 
                       <td className="p-2">
@@ -285,7 +353,9 @@ export default function ScheduleForm({
                           disabled={!d.enabled}
                           value={d.start_time}
                           onChange={(e) => handleDayFieldChange(d.day_of_week, 'start_time', e.target.value)}
-                          className="px-2 py-1 rounded border border-blue-gray-200 text-xs focus:border-indigo-600 focus:outline-none"
+                          className={`px-2 py-1 rounded border text-xs focus:outline-none ${
+                            dayError ? 'border-red-500' : 'border-blue-gray-200 focus:border-indigo-600'
+                          }`}
                         />
                       </td>
 
@@ -295,7 +365,9 @@ export default function ScheduleForm({
                           disabled={!d.enabled}
                           value={d.end_time}
                           onChange={(e) => handleDayFieldChange(d.day_of_week, 'end_time', e.target.value)}
-                          className="px-2 py-1 rounded border border-blue-gray-200 text-xs focus:border-indigo-600 focus:outline-none"
+                          className={`px-2 py-1 rounded border text-xs focus:outline-none ${
+                            dayError ? 'border-red-500' : 'border-blue-gray-200 focus:border-indigo-600'
+                          }`}
                         />
                       </td>
 
@@ -307,7 +379,9 @@ export default function ScheduleForm({
                           disabled={!d.enabled}
                           value={d.break_minutes}
                           onChange={(e) => handleDayFieldChange(d.day_of_week, 'break_minutes', e.target.value)}
-                          className="w-20 px-2 py-1 rounded border border-blue-gray-200 text-xs focus:border-indigo-600 focus:outline-none"
+                          className={`w-20 px-2 py-1 rounded border text-xs focus:outline-none ${
+                            dayError ? 'border-red-500' : 'border-blue-gray-200 focus:border-indigo-600'
+                          }`}
                         />
                       </td>
 

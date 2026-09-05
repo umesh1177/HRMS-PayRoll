@@ -24,6 +24,7 @@ import DataTable from '../common/DataTable';
 import Modal from '../common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import axiosClient from '../../api/axiosClient';
+import { isValidPositiveNumber, isValidDateRange } from '../../utils/formValidators';
 
 /**
  * Time Off Allocation List.
@@ -54,16 +55,64 @@ export default function AllocationList({
     valid_from: `${new Date().getFullYear()}-01-01`,
     valid_to: `${new Date().getFullYear()}-12-31`
   });
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const validateAllocationForm = (data) => {
+    const errs = {};
+    if (!data.employee_id) {
+      errs.employee_id = 'Please select an employee.';
+    }
+    if (!data.time_off_type_id) {
+      errs.time_off_type_id = 'Please select a leave type.';
+    }
+    if (!data.allocated_amount || !isValidPositiveNumber(data.allocated_amount)) {
+      errs.allocated_amount = 'Allocated amount must be greater than 0.';
+    }
+    if (!data.valid_from) {
+      errs.valid_from = 'Valid from date is required.';
+    }
+    if (data.valid_from && data.valid_to && !isValidDateRange(data.valid_from, data.valid_to)) {
+      errs.valid_to = 'Valid to date cannot be before valid from date.';
+    }
+    return errs;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const updated = { ...formData, [name]: value };
+    setFormData(updated);
+
+    if (touched[name]) {
+      const vErrors = validateAllocationForm(updated);
+      setErrors(vErrors);
+    }
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const vErrors = validateAllocationForm(formData);
+    setErrors(vErrors);
   };
 
   const handleCreate = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    setTouched({
+      employee_id: true,
+      time_off_type_id: true,
+      allocated_amount: true,
+      valid_from: true,
+      valid_to: true
+    });
+
+    const validationErrors = validateAllocationForm(formData);
+    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
     setErrorMsg('');
     setSubmitting(true);
 
@@ -218,8 +267,12 @@ export default function AllocationList({
               name="employee_id"
               value={formData.employee_id}
               onChange={handleChange}
-              className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
-              required
+              onBlur={() => handleBlur('employee_id')}
+              className={`w-full h-10 px-3 rounded-md border text-sm focus:outline-none ${
+                touched.employee_id && errors.employee_id
+                  ? 'border-red-500'
+                  : 'border-blue-gray-200 focus:border-indigo-600'
+              }`}
             >
               <option value="">-- Select Employee --</option>
               {employees.map((e) => (
@@ -228,6 +281,9 @@ export default function AllocationList({
                 </option>
               ))}
             </select>
+            {touched.employee_id && errors.employee_id && (
+              <p className="text-xs text-red-500 mt-1">{errors.employee_id}</p>
+            )}
           </div>
 
           <div>
@@ -238,8 +294,12 @@ export default function AllocationList({
               name="time_off_type_id"
               value={formData.time_off_type_id}
               onChange={handleChange}
-              className="w-full h-10 px-3 rounded-md border border-blue-gray-200 text-sm focus:border-indigo-600 focus:outline-none"
-              required
+              onBlur={() => handleBlur('time_off_type_id')}
+              className={`w-full h-10 px-3 rounded-md border text-sm focus:outline-none ${
+                touched.time_off_type_id && errors.time_off_type_id
+                  ? 'border-red-500'
+                  : 'border-blue-gray-200 focus:border-indigo-600'
+              }`}
             >
               <option value="">-- Select Type --</option>
               {types.map((t) => (
@@ -248,6 +308,9 @@ export default function AllocationList({
                 </option>
               ))}
             </select>
+            {touched.time_off_type_id && errors.time_off_type_id && (
+              <p className="text-xs text-red-500 mt-1">{errors.time_off_type_id}</p>
+            )}
           </div>
 
           <div>
@@ -259,9 +322,13 @@ export default function AllocationList({
               name="allocated_amount"
               value={formData.allocated_amount}
               onChange={handleChange}
+              onBlur={() => handleBlur('allocated_amount')}
               placeholder="15"
-              required
+              error={touched.allocated_amount && !!errors.allocated_amount}
             />
+            {touched.allocated_amount && errors.allocated_amount && (
+              <p className="text-xs text-red-500 mt-1">{errors.allocated_amount}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -274,8 +341,12 @@ export default function AllocationList({
                 name="valid_from"
                 value={formData.valid_from}
                 onChange={handleChange}
-                required
+                onBlur={() => handleBlur('valid_from')}
+                error={touched.valid_from && !!errors.valid_from}
               />
+              {touched.valid_from && errors.valid_from && (
+                <p className="text-xs text-red-500 mt-1">{errors.valid_from}</p>
+              )}
             </div>
 
             <div>
@@ -287,7 +358,12 @@ export default function AllocationList({
                 name="valid_to"
                 value={formData.valid_to}
                 onChange={handleChange}
+                onBlur={() => handleBlur('valid_to')}
+                error={touched.valid_to && !!errors.valid_to}
               />
+              {touched.valid_to && errors.valid_to && (
+                <p className="text-xs text-red-500 mt-1">{errors.valid_to}</p>
+              )}
             </div>
           </div>
         </form>
