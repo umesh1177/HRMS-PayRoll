@@ -82,7 +82,7 @@ export default function AppRoutes() {
       <Route
         path="/contracts"
         element={
-          <ProtectedRoute requiredPermission="contract.manage">
+          <ProtectedRoute>
             <DashboardLayout>
               <ContractsPage />
             </DashboardLayout>

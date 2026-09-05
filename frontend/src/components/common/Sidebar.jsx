@@ -63,7 +63,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
       name: 'Contracts',
       path: '/contracts',
       icon: DocumentTextIcon,
-      show: hasPermission('contract.manage')
+      show: true
     },
     {
       name: 'Working Schedules',

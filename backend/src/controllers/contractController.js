@@ -21,6 +21,7 @@ const {
 
 /**
  * Lists contracts with pagination and joined relation names.
+ * Automatically scopes to own employee profile if user is an Employee.
  */
 async function listContracts(req, res, next) {
   try {
@@ -33,7 +34,21 @@ async function listContracts(req, res, next) {
     let whereConditions = [];
     let queryParams = [];
 
-    if (employee_id) {
+    // Check if user has permission to manage all contracts or view only their own
+    const userRole = req.user.role_id;
+    const [permRows] = await pool.query(
+      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'contract.manage' OR p.code = 'system.admin')`,
+      [userRole]
+    );
+    const canManage = permRows.length > 0;
+
+    if (!canManage) {
+      if (!req.user.employee_id) {
+        return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+      }
+      whereConditions.push('c.employee_id = ?');
+      queryParams.push(req.user.employee_id);
+    } else if (employee_id) {
       whereConditions.push('c.employee_id = ?');
       queryParams.push(employee_id);
     }
@@ -108,7 +123,14 @@ async function getContractById(req, res, next) {
   try {
     const { id } = req.params;
 
-    const query = `
+    const userRole = req.user.role_id;
+    const [permRows] = await pool.query(
+      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'contract.manage' OR p.code = 'system.admin')`,
+      [userRole]
+    );
+    const canManage = permRows.length > 0;
+
+    let query = `
       SELECT 
         c.id,
         c.employee_id,
@@ -136,10 +158,16 @@ async function getContractById(req, res, next) {
       LEFT JOIN working_schedules ws ON c.working_schedule_id = ws.id
       JOIN salary_structures ss ON c.salary_structure_id = ss.id
       WHERE c.id = ?
-      LIMIT 1
     `;
 
-    const [rows] = await pool.query(query, [id]);
+    const params = [id];
+    if (!canManage) {
+      query += ' AND c.employee_id = ?';
+      params.push(req.user.employee_id);
+    }
+    query += ' LIMIT 1';
+
+    const [rows] = await pool.query(query, params);
     if (rows.length === 0) {
       const error = new Error(`Contract with ID ${id} not found`);
       error.status = 404;
