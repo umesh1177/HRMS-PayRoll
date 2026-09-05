@@ -259,6 +259,36 @@ async function listAttendance(req, res, next) {
 }
 
 /**
+ * Returns current-week and current-month worked-hour totals for the caller or a selected employee.
+ */
+async function getSummary(req, res, next) {
+  try {
+    const requestedEmployeeId = req.query.employee_id;
+    const [permRows] = await pool.query(
+      `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+       WHERE rp.role_id = ? AND (p.code = 'attendance.manage_all' OR p.code = 'system.admin') LIMIT 1`,
+      [req.user.role_id]
+    );
+    const canManageAll = permRows.length > 0;
+    const employeeId = canManageAll ? (requestedEmployeeId || null) : req.user.employee_id;
+    if (!employeeId) return res.status(200).json({ data: { employee_id: null, week_hours: 0, week_days_present: 0, month_hours: 0, month_days_present: 0 } });
+
+    const [[summary]] = await pool.query(
+      `SELECT
+        COALESCE(SUM(CASE WHEN DATE(a.check_in) >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) THEN a.worked_hours ELSE 0 END), 0) AS week_hours,
+        COUNT(DISTINCT CASE WHEN DATE(a.check_in) >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) AND a.worked_hours IS NOT NULL THEN DATE(a.check_in) END) AS week_days_present,
+        COALESCE(SUM(CASE WHEN YEAR(a.check_in) = YEAR(CURDATE()) AND MONTH(a.check_in) = MONTH(CURDATE()) THEN a.worked_hours ELSE 0 END), 0) AS month_hours,
+        COUNT(DISTINCT CASE WHEN YEAR(a.check_in) = YEAR(CURDATE()) AND MONTH(a.check_in) = MONTH(CURDATE()) AND a.worked_hours IS NOT NULL THEN DATE(a.check_in) END) AS month_days_present
+       FROM attendances a WHERE a.employee_id = ?`,
+      [employeeId]
+    );
+    res.status(200).json({ data: { employee_id: Number(employeeId), ...summary } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Manual edit/correction of an attendance record by authorized HR/Admin.
  * Sets is_manual_edit = TRUE and records edited_by.
  * 
@@ -338,5 +368,6 @@ module.exports = {
   checkOut,
   getCurrentStatus,
   listAttendance,
+  getSummary,
   manualEdit
 };

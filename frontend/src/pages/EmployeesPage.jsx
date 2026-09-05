@@ -107,12 +107,12 @@ export default function EmployeesPage() {
         setEmployees(res.data.data);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
-        setEmployees(mockEmployees);
+        setEmployees([]);
         setTotalPages(1);
       }
     } catch (err) {
-      console.warn('Backend unavailable, rendering mock employees dataset.');
-      setEmployees(mockEmployees);
+      console.warn('Failed to load employees:', err);
+      setEmployees([]);
       setTotalPages(1);
     } finally {
       setLoading(false);

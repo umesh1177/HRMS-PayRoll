@@ -128,6 +128,20 @@ async function getEmployeeById(req, res, next) {
   try {
     const { id } = req.params;
 
+    const [permissionRows] = await pool.query(
+      `SELECT p.code FROM role_permissions rp
+       JOIN permissions p ON rp.permission_id = p.id
+       WHERE rp.role_id = ? AND p.code IN ('employee.view_all', 'system.admin')
+       LIMIT 1`,
+      [req.user.role_id]
+    );
+    if (permissionRows.length === 0 && Number(id) !== Number(req.user.employee_id)) {
+      const error = new Error('You can only view your own employee profile');
+      error.status = 403;
+      error.code = 'FORBIDDEN';
+      return next(error);
+    }
+
     const query = `
       SELECT 
         e.id,

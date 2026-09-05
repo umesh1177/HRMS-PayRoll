@@ -52,8 +52,8 @@ export default function TimeOffRequestForm({
     if (!formData.start_date || !formData.end_date) return 0;
     const start = new Date(formData.start_date);
     const end = new Date(formData.end_date);
-    const diff = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
-    return Math.max(1, diff);
+    if (end < start) return 0;
+    return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
   };
 
   const handleChange = (e) => {
@@ -67,6 +67,10 @@ export default function TimeOffRequestForm({
     setSubmitting(true);
 
     try {
+      if (!formData.start_date || !formData.end_date || formData.end_date < formData.start_date) {
+        setErrorMessage('End date must be on or after start date.');
+        return;
+      }
       await axiosClient.post('/timeoff/requests', {
         time_off_type_id: Number(formData.time_off_type_id),
         start_date: formData.start_date,

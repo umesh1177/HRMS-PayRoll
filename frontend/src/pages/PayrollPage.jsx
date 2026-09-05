@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Tabs,
   TabsHeader,
@@ -51,10 +52,24 @@ import mockRules from '../api/mocks/salary_rules.json';
  */
 export default function PayrollPage() {
   const { hasPermission } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { tab } = useParams();
+
   const canManagePayruns = hasPermission('payroll.payrun.manage');
   const canViewStructures = hasPermission('payroll.structure.view');
 
-  const [activeTab, setActiveTab] = useState('payruns');
+  // Derive active tab from URL segment (/payroll/:tab)
+  const validTabs = ['payruns', 'payslips', 'structures', 'rules'];
+  const activeTab = tab && validTabs.includes(tab)
+    ? tab
+    : (location.pathname.split('/')[2] && validTabs.includes(location.pathname.split('/')[2])
+      ? location.pathname.split('/')[2]
+      : 'payruns');
+
+  const handleTabChange = (newTab) => {
+    navigate(`/payroll/${newTab}`);
+  };
 
   // Datasets
   const [payruns, setPayruns] = useState([]);
@@ -102,10 +117,10 @@ export default function PayrollPage() {
         setPayruns(res.data.data);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
-        setPayruns(mockPayruns);
+        setPayruns([]);
       }
     } catch (err) {
-      setPayruns(mockPayruns);
+      setPayruns([]);
     } finally {
       setLoadingPayruns(false);
     }
@@ -175,24 +190,24 @@ export default function PayrollPage() {
     <div className="mt-6 flex flex-col gap-6">
       <Tabs value={activeTab}>
         <TabsHeader className="bg-white border border-blue-gray-100 p-1.5 shadow-sm max-w-2xl">
-          <Tab value="payruns" onClick={() => setActiveTab('payruns')} className="text-xs font-bold py-2.5">
+          <Tab value="payruns" onClick={() => handleTabChange('payruns')} className="text-xs font-bold py-2.5">
             <div className="flex items-center gap-2">
               <BanknotesIcon className="h-4 w-4" /> Payruns
             </div>
           </Tab>
-          <Tab value="payslips" onClick={() => setActiveTab('payslips')} className="text-xs font-bold py-2.5">
+          <Tab value="payslips" onClick={() => handleTabChange('payslips')} className="text-xs font-bold py-2.5">
             <div className="flex items-center gap-2">
               <TableCellsIcon className="h-4 w-4" /> Payslips
             </div>
           </Tab>
           {canViewStructures && (
             <>
-              <Tab value="structures" onClick={() => setActiveTab('structures')} className="text-xs font-bold py-2.5">
+              <Tab value="structures" onClick={() => handleTabChange('structures')} className="text-xs font-bold py-2.5">
                 <div className="flex items-center gap-2">
                   <CalculatorIcon className="h-4 w-4" /> Structures
                 </div>
               </Tab>
-              <Tab value="rules" onClick={() => setActiveTab('rules')} className="text-xs font-bold py-2.5">
+              <Tab value="rules" onClick={() => handleTabChange('rules')} className="text-xs font-bold py-2.5">
                 <div className="flex items-center gap-2">
                   <ReceiptPercentIcon className="h-4 w-4" /> Rules
                 </div>

@@ -80,9 +80,9 @@ export default function TimeOffPage() {
     try {
       const res = await axiosClient.get('/employees?limit=100');
       if (res.data?.data) setEmployees(res.data.data);
-      else setEmployees(mockEmployees);
+      else setEmployees([]);
     } catch (err) {
-      setEmployees(mockEmployees);
+      setEmployees([]);
     }
   };
 
@@ -93,10 +93,10 @@ export default function TimeOffPage() {
       if (res.data?.data) {
         setTypes(res.data.data);
       } else {
-        setTypes(mockTypes);
+        setTypes([]);
       }
     } catch (err) {
-      setTypes(mockTypes);
+      setTypes([]);
     } finally {
       setLoadingTypes(false);
     }
@@ -110,11 +110,11 @@ export default function TimeOffPage() {
         setRequests(res.data.data);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
-        setRequests(mockRequests);
+        setRequests([]);
         setTotalPages(1);
       }
     } catch (err) {
-      setRequests(mockRequests);
+      setRequests([]);
       setTotalPages(1);
     } finally {
       setLoadingRequests(false);
@@ -128,10 +128,10 @@ export default function TimeOffPage() {
       if (res.data?.data) {
         setAllocations(res.data.data);
       } else {
-        setAllocations(mockAllocations);
+        setAllocations([]);
       }
     } catch (err) {
-      setAllocations(mockAllocations);
+      setAllocations([]);
     } finally {
       setLoadingAllocations(false);
     }

@@ -15,6 +15,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardBody,
@@ -46,7 +47,7 @@ import TimeOffOverviewCard from '../components/dashboard/TimeOffOverviewCard';
  * 
  * @returns {JSX.Element} Dashboard screen
  */
-export default function DashboardPage() {
+function ExecutiveDashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState([]);
@@ -269,7 +270,7 @@ export default function DashboardPage() {
               <CardHeader
                 variant="gradient"
                 color={kpi.color}
-                floating={false}
+                floated={false}
                 shadow={false}
                 className="absolute grid h-12 w-12 place-items-center rounded-lg"
               >
@@ -369,4 +370,89 @@ export default function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+function EmployeeDashboard() {
+  const { user } = useAuth();
+  const [summary, setSummary] = useState({ attendance: null, requests: 0, payslips: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPersonalSummary = async () => {
+      const results = await Promise.allSettled([
+        axiosClient.get('/attendance/current'),
+        axiosClient.get('/timeoff/requests?limit=100'),
+        axiosClient.get('/payroll/payslips?limit=1')
+      ]);
+
+      setSummary({
+        attendance: results[0].status === 'fulfilled' ? results[0].value.data?.data : null,
+        requests: results[1].status === 'fulfilled' ? results[1].value.data?.pagination?.total || 0 : 0,
+        payslips: results[2].status === 'fulfilled' ? results[2].value.data?.pagination?.total || 0 : 0
+      });
+      setLoading(false);
+    };
+
+    loadPersonalSummary();
+  }, []);
+
+  const cards = [
+    {
+      label: 'Attendance',
+      value: summary.attendance?.isCheckedIn ? 'Checked in' : 'Not checked in',
+      detail: summary.attendance?.activeSession?.check_in || 'View your attendance',
+      path: '/attendance',
+      color: 'indigo'
+    },
+    {
+      label: 'Time-off requests',
+      value: summary.requests,
+      detail: 'View request history',
+      path: '/timeoff',
+      color: 'amber'
+    },
+    {
+      label: 'Payslips',
+      value: summary.payslips,
+      detail: 'View your payslips',
+      path: '/payroll/payslips',
+      color: 'green'
+    }
+  ];
+
+  return (
+    <div className="mt-4 flex flex-col gap-6">
+      <div className="rounded-xl bg-gradient-to-r from-indigo-900 via-indigo-700 to-blue-600 p-6 text-white shadow-md">
+        <p className="text-sm font-medium text-indigo-100">Employee self-service</p>
+        <h1 className="mt-1 text-2xl font-bold">Welcome, {user?.first_name || user?.email}</h1>
+        <p className="mt-2 text-sm text-indigo-100">Manage your attendance, time off, and payslips from one place.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {cards.map((card) => (
+          <Link key={card.path} to={card.path} className="rounded-xl border border-blue-gray-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-gray-500">{card.label}</p>
+            <p className={`mt-3 text-2xl font-bold ${
+              card.color === 'indigo' ? 'text-indigo-700' : card.color === 'amber' ? 'text-amber-700' : 'text-green-700'
+            }`}>{loading ? '...' : card.value}</p>
+            <p className="mt-2 text-sm text-blue-gray-500">{card.detail}</p>
+          </Link>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-blue-gray-100 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-bold text-blue-gray-800">Quick actions</h2>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link to="/attendance" className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Open Attendance</Link>
+          <Link to="/timeoff" className="rounded-lg border border-blue-gray-200 px-4 py-2.5 text-sm font-semibold text-blue-gray-700 hover:bg-blue-gray-50">Request Time Off</Link>
+          <Link to="/payroll/payslips" className="rounded-lg border border-blue-gray-200 px-4 py-2.5 text-sm font-semibold text-blue-gray-700 hover:bg-blue-gray-50">View Payslips</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const { hasPermission } = useAuth();
+  return hasPermission('employee.view_all') ? <ExecutiveDashboard /> : <EmployeeDashboard />;
 }

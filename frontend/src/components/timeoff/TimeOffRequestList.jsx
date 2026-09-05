@@ -45,7 +45,7 @@ export default function TimeOffRequestList({
   onRequestUpdated,
   actionButton
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const canApprove = hasPermission('timeoff.approve');
 
   // Local optimistic state tracking for immediate UI responsiveness
@@ -184,7 +184,7 @@ export default function TimeOffRequestList({
         const isPending = currentStatus === 'submitted';
         const isActionLoading = actionLoadingId === row.id;
 
-        if (!canApprove || !isPending) {
+        if (!canApprove || !isPending || Number(row.employee_id) === Number(user?.employee_id)) {
           return <span className="text-xs text-blue-gray-400">-</span>;
         }
 

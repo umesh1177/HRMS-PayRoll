@@ -64,39 +64,6 @@ export function AuthProvider({ children }) {
       setUser(receivedUser);
       return receivedUser;
     } catch (err) {
-      // Fallback mock credentials assistant for hackathon demo resilience if backend offline
-      if (err.code === 'ERR_NETWORK' || !err.response) {
-        console.warn('Backend unavailable, activating local mock session for demo mode.');
-        let role = 'Admin';
-        let perms = ['system.admin', 'employee.manage', 'employee.view_all', 'contract.manage', 'schedule.manage', 'payroll.payrun.manage'];
-        if (email.includes('hr')) {
-          role = 'HR Manager';
-          perms = ['employee.view_all', 'employee.manage', 'contract.manage', 'schedule.manage'];
-        } else if (email.includes('payroll')) {
-          role = 'HR Payroll Manager';
-          perms = ['employee.view_all', 'contract.manage', 'payroll.payrun.manage', 'payroll.structure.manage'];
-        } else if (email.includes('emp')) {
-          role = 'Employee';
-          perms = ['employee.view_own', 'attendance.view_own', 'timeoff.view_own'];
-        }
-
-        const mockUser = {
-          id: 1,
-          email,
-          role,
-          role_id: 1,
-          first_name: 'Demo',
-          last_name: 'User',
-          permissions: perms,
-          status: 'active'
-        };
-        const mockToken = 'mock_jwt_token_peoplepay360';
-        localStorage.setItem('token', mockToken);
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        setToken(mockToken);
-        setUser(mockUser);
-        return mockUser;
-      }
       throw err;
     }
   };
@@ -109,6 +76,16 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     setUser(null);
     setToken(null);
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    await axiosClient.put('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword
+    });
+    const updatedUser = { ...user, must_change_password: false };
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
   };
 
   /**
@@ -136,6 +113,7 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated: !!token && !!user,
     login,
+    changePassword,
     logout,
     hasPermission
   };

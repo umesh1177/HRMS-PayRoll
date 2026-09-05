@@ -58,7 +58,7 @@ async function getSummary(req, res, next) {
         COUNT(*) AS total,
         SUM(p.status = 'draft') AS draft_count,
         SUM(p.status = 'computed') AS computed_count,
-        SUM(p.status = 'done') AS done_count,
+        SUM(p.status = 'paid') AS done_count,
         SUM(p.status = 'paid') AS paid_count,
         COALESCE(SUM(CASE WHEN p.status = 'paid' THEN p.net_amount ELSE 0 END), 0) AS total_net_paid,
         COALESCE(SUM(p.gross_amount), 0) AS total_gross_amount

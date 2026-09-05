@@ -27,8 +27,8 @@ router.post('/allocations', requirePermission('timeoff.manage_config'), timeoffC
 
 // Requests & Workflow
 router.get('/requests', timeoffController.listRequests);
-router.post('/requests', timeoffController.createRequest);
-router.put('/requests/:id/submit', timeoffController.submitRequest);
+router.post('/requests', requirePermission('timeoff.request_own'), timeoffController.createRequest);
+router.put('/requests/:id/submit', requirePermission('timeoff.request_own'), timeoffController.submitRequest);
 router.put('/requests/:id/approve', requirePermission('timeoff.approve'), timeoffController.approveRequest);
 router.put('/requests/:id/refuse', requirePermission('timeoff.approve'), timeoffController.refuseRequest);
 

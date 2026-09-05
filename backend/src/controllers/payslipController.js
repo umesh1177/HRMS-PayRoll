@@ -12,6 +12,15 @@
 const pool = require('../config/db');
 const { generatePayslipHtml } = require('../utils/pdfGenerator');
 
+async function canViewAllPayslips(roleId) {
+  const [rows] = await pool.query(
+    `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+     WHERE rp.role_id = ? AND (p.code = 'payroll.payrun.manage' OR p.code = 'system.admin') LIMIT 1`,
+    [roleId]
+  );
+  return rows.length > 0;
+}
+
 /**
  * Lists payslips with pagination, filtering, and RBAC scoping.
  */
@@ -110,6 +119,7 @@ async function listPayslips(req, res, next) {
 async function getPayslipById(req, res, next) {
   try {
     const { id } = req.params;
+    const viewAll = await canViewAllPayslips(req.user.role_id);
 
     const query = `
       SELECT 
@@ -143,10 +153,10 @@ async function getPayslipById(req, res, next) {
       LEFT JOIN job_positions jp ON e.job_position_id = jp.id
       JOIN contracts c ON p.contract_id = c.id
       JOIN salary_structures ss ON p.salary_structure_id = ss.id
-      WHERE p.id = ?
+      WHERE p.id = ?${viewAll ? '' : ' AND p.employee_id = ?'}
     `;
 
-    const [payslips] = await pool.query(query, [id]);
+    const [payslips] = await pool.query(query, viewAll ? [id] : [id, req.user.employee_id]);
     if (payslips.length === 0) {
       const error = new Error(`Payslip #${id} not found`);
       error.status = 404;
@@ -180,6 +190,7 @@ async function getPayslipById(req, res, next) {
 async function getPayslipPdf(req, res, next) {
   try {
     const { id } = req.params;
+    const viewAll = await canViewAllPayslips(req.user.role_id);
 
     const [payslips] = await pool.query(
       `SELECT p.*, py.name AS payrun_name, ss.name AS structure_name,
@@ -191,8 +202,8 @@ async function getPayslipPdf(req, res, next) {
        LEFT JOIN departments d ON e.department_id = d.id
        LEFT JOIN job_positions jp ON e.job_position_id = jp.id
        JOIN salary_structures ss ON p.salary_structure_id = ss.id
-       WHERE p.id = ?`,
-      [id]
+      WHERE p.id = ?${viewAll ? '' : ' AND p.employee_id = ?'}`,
+          viewAll ? [id] : [id, req.user.employee_id]
     );
 
     if (payslips.length === 0) {

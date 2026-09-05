@@ -12,6 +12,12 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+// Enforce mandatory security configuration at server startup
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL CONFIG ERROR] JWT_SECRET environment variable is not set.');
+  throw new Error('JWT_SECRET environment variable must be defined before server startup.');
+}
+
 const app = require('./app');
 
 const PORT = Number(process.env.PORT) || 5000;

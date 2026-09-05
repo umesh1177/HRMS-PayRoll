@@ -184,7 +184,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
                           className={({ isActive }) =>
                             `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                               isActive
-                                ? 'bg-white/20 text-white font-semibold'
+                                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-semibold shadow-sm'
                                 : 'text-blue-gray-300 hover:bg-white/10 hover:text-white'
                             }`
                           }

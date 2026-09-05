@@ -19,11 +19,23 @@ const pool = require('../config/db');
  * @returns {number} Duration in days (minimum 1)
  */
 function calculateLeaveDuration(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diffTime = Math.abs(end - start);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-  return Math.max(1, diffDays);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    const error = new Error('Dates must use YYYY-MM-DD format');
+    error.status = 400;
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    const error = new Error('End date must be on or after start date');
+    error.status = 400;
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
 }
 
 /**
@@ -72,25 +84,45 @@ async function approveTimeOffRequest(requestId, approverUserId) {
       throw new Error(`Time off request #${requestId} not found`);
     }
 
-    const req = rows[0];
+    const request = rows[0];
 
-    if (req.status === 'approved') {
-      throw new Error('This time off request has already been approved');
+    if (request.status !== 'submitted') {
+      throw new Error('Only submitted time off requests can be approved');
+    }
+
+    const [approverRows] = await connection.query(
+      `SELECT u.employee_id, r.name AS role_name, e.manager_id
+       FROM users u
+       JOIN roles r ON u.role_id = r.id
+       LEFT JOIN employees e ON e.id = ?
+       WHERE u.id = ?`,
+      [request.employee_id, approverUserId]
+    );
+    const approver = approverRows[0];
+    if (!approver) throw new Error('Approver account not found');
+    if (approver.employee_id === request.employee_id) {
+      throw new Error('You cannot approve your own time off request');
+    }
+    if (approver.role_name !== 'Admin' && approver.employee_id !== approver.manager_id) {
+      throw new Error('Only an administrator or the employee manager can approve this request');
     }
 
     // 2. If leave type requires allocation, update and verify allocation balance
-    if (req.requires_allocation && req.allocation_id) {
+    if (request.requires_allocation && request.allocation_id) {
       const [allocRows] = await connection.query(
-        'SELECT id, allocated_amount, taken_amount FROM time_off_allocations WHERE id = ? FOR UPDATE',
-        [req.allocation_id]
+        'SELECT id, employee_id, time_off_type_id, allocated_amount, taken_amount FROM time_off_allocations WHERE id = ? FOR UPDATE',
+        [request.allocation_id]
       );
 
       if (allocRows.length === 0) {
-        throw new Error(`Linked allocation #${req.allocation_id} not found`);
+        throw new Error(`Linked allocation #${request.allocation_id} not found`);
       }
 
       const alloc = allocRows[0];
-      const newTaken = Number(alloc.taken_amount) + Number(req.duration);
+      if (alloc.employee_id !== request.employee_id || alloc.time_off_type_id !== request.time_off_type_id) {
+        throw new Error('The selected allocation does not belong to this request');
+      }
+      const newTaken = Number(alloc.taken_amount) + Number(request.duration);
 
       if (newTaken > Number(alloc.allocated_amount)) {
         throw new Error(
@@ -102,8 +134,10 @@ async function approveTimeOffRequest(requestId, approverUserId) {
       // Schema reference: time_off_allocations.taken_amount
       await connection.query(
         'UPDATE time_off_allocations SET taken_amount = ? WHERE id = ?',
-        [newTaken, req.allocation_id]
+        [newTaken, request.allocation_id]
       );
+    } else if (request.requires_allocation) {
+      throw new Error('An approved allocation is required for this leave type');
     }
 
     // 3. Mark request as approved

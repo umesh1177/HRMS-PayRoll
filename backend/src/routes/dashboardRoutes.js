@@ -13,6 +13,7 @@ const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const authenticateToken = require('../middleware/auth');
+const { requirePermission } = require('../middleware/rbac');
 
 router.use(authenticateToken);
 
@@ -21,6 +22,6 @@ router.use(authenticateToken);
  * @desc Get consolidated KPI metrics, department payroll, monthly trend, attendance, time off & warnings
  * @access Private (Authenticated)
  */
-router.get('/summary', dashboardController.getSummary);
+router.get('/summary', requirePermission('employee.view_all'), dashboardController.getSummary);
 
 module.exports = router;

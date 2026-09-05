@@ -31,7 +31,13 @@ function authenticateToken(req, res, next) {
     return next(error);
   }
 
-  const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_peoplepay360_hackathon_2026';
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    const error = new Error('Server authentication configuration error: JWT_SECRET missing');
+    error.status = 500;
+    error.code = 'CONFIG_ERROR';
+    return next(error);
+  }
 
   jwt.verify(token, secret, (err, decodedUser) => {
     if (err) {

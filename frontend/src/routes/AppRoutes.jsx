@@ -14,6 +14,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 import Sidebar from '../components/common/Sidebar';
 import Navbar from '../components/common/Navbar';
+import { Alert, Button, Input, Typography } from '@material-tailwind/react';
+import Modal from '../components/common/Modal';
+import { useAuth } from '../context/AuthContext';
 
 // Pages
 import LoginPage from '../pages/LoginPage';
@@ -35,6 +38,32 @@ import UserManagementPage from '../pages/UserManagementPage';
  */
 function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, changePassword } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const handlePasswordChange = async (event) => {
+    event.preventDefault();
+    setPasswordError('');
+    if (newPassword.length < 8 || newPassword !== confirmPassword) {
+      setPasswordError('New passwords must match and contain at least 8 characters.');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPasswordError(err.response?.data?.error?.message || 'Unable to change password.');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-blue-gray-50/50">
@@ -43,6 +72,18 @@ function DashboardLayout({ children }) {
         <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         <main className="mt-2">{children}</main>
       </div>
+      {user?.must_change_password && (
+        <Modal open onClose={() => {}} title="Set a new password" size="md" footer={null}>
+          <form onSubmit={handlePasswordChange} className="flex flex-col gap-4">
+            <Typography variant="small" color="blue-gray">Your temporary password must be replaced before you can continue.</Typography>
+            {passwordError && <Alert color="red" variant="gradient">{passwordError}</Alert>}
+            <Input label="Current temporary password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+            <Input label="New password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+            <Input label="Confirm new password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+            <Button type="submit" color="indigo" disabled={savingPassword}>{savingPassword ? 'Saving...' : 'Save new password'}</Button>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -72,7 +113,7 @@ export default function AppRoutes() {
       <Route
         path="/employees"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="employee.view_own">
             <DashboardLayout>
               <EmployeesPage />
             </DashboardLayout>
@@ -102,7 +143,7 @@ export default function AppRoutes() {
       <Route
         path="/attendance"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="attendance.view_own">
             <DashboardLayout>
               <AttendancePage />
             </DashboardLayout>
@@ -112,7 +153,7 @@ export default function AppRoutes() {
       <Route
         path="/timeoff"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="timeoff.view_own">
             <DashboardLayout>
               <TimeOffPage />
             </DashboardLayout>
@@ -120,9 +161,23 @@ export default function AppRoutes() {
         }
       />
       <Route
+        path="/payroll"
+        element={<Navigate to="/payroll/payruns" replace />}
+      />
+      <Route
+        path="/payroll/:tab"
+        element={
+          <ProtectedRoute requiredPermission="payroll.payslip.view">
+            <DashboardLayout>
+              <PayrollPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/payroll/*"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="payroll.payslip.view">
             <DashboardLayout>
               <PayrollPage />
             </DashboardLayout>

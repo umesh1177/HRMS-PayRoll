@@ -15,7 +15,10 @@ import {
   Button,
   Input,
   Typography,
-  Alert
+  Alert,
+  Card,
+  CardBody,
+  CardHeader
 } from '@material-tailwind/react';
 import { InformationCircleIcon } from '@heroicons/react/24/solid';
 import AttendanceWidget from '../components/attendance/AttendanceWidget';
@@ -23,7 +26,6 @@ import AttendanceList from '../components/attendance/AttendanceList';
 import Modal from '../components/common/Modal';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
-import mockAttendances from '../api/mocks/attendances.json';
 
 /**
  * Attendance Page Component.
@@ -38,6 +40,9 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [summary, setSummary] = useState(null);
+  const [summaryEmployeeId, setSummaryEmployeeId] = useState('');
+  const [employees, setEmployees] = useState([]);
 
   // Manual Edit Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -53,7 +58,12 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchAttendance();
-  }, [page]);
+  }, [page, summaryEmployeeId]);
+
+  useEffect(() => {
+    if (!canManageAll) return;
+    axiosClient.get('/employees?limit=100').then((res) => setEmployees(res.data?.data || [])).catch(() => setEmployees([]));
+  }, [canManageAll]);
 
   const fetchAttendance = async () => {
     setLoading(true);
@@ -63,15 +73,22 @@ export default function AttendancePage() {
         setRecords(res.data.data);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
-        setRecords(mockAttendances);
+        setRecords([]);
         setTotalPages(1);
       }
     } catch (err) {
-      console.warn('Backend unavailable, using mock attendance.');
-      setRecords(mockAttendances);
+      console.warn('Failed to load attendance:', err);
+      setRecords([]);
       setTotalPages(1);
     } finally {
       setLoading(false);
+    }
+    try {
+      const query = canManageAll && summaryEmployeeId ? `?employee_id=${summaryEmployeeId}` : '';
+      const summaryRes = await axiosClient.get(`/attendance/summary${query}`);
+      setSummary(summaryRes.data?.data || null);
+    } catch (err) {
+      setSummary(null);
     }
   };
 
@@ -107,7 +124,46 @@ export default function AttendancePage() {
   return (
     <div className="mt-6 flex flex-col gap-6">
       {/* Self-service punch widget */}
-      <AttendanceWidget onPunchChange={fetchAttendance} />
+      {user?.employee_id ? (
+        <AttendanceWidget onPunchChange={fetchAttendance} />
+      ) : (
+        <Alert color="blue" variant="ghost" className="border border-blue-100 text-sm">
+          This account has no linked employee profile, so there is nothing to check in or out.
+        </Alert>
+      )}
+
+      <Card className="border border-blue-gray-100 shadow-sm">
+        <CardHeader floated={false} shadow={false} className="rounded-none p-4 pb-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <Typography variant="h6" color="blue-gray" className="font-bold">Worked Hours</Typography>
+              <Typography variant="small" color="blue-gray" className="text-xs">Completed attendance totals for the current periods</Typography>
+            </div>
+            {canManageAll && (
+              <select
+                value={summaryEmployeeId}
+                onChange={(e) => setSummaryEmployeeId(e.target.value)}
+                className="h-10 rounded-md border border-blue-gray-200 px-3 text-sm focus:border-indigo-600 focus:outline-none"
+              >
+                <option value="">Select employee</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name || `${employee.first_name} ${employee.last_name}`}</option>)}
+              </select>
+            )}
+          </div>
+        </CardHeader>
+        <CardBody className="grid grid-cols-1 gap-4 pt-3 sm:grid-cols-2">
+          {[
+            { label: 'This Week', hours: summary?.week_hours, days: summary?.week_days_present },
+            { label: 'This Month', hours: summary?.month_hours, days: summary?.month_days_present }
+          ].map((item) => (
+            <div key={item.label} className="rounded-lg border border-blue-gray-100 bg-blue-gray-50/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-gray-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-bold text-indigo-700">{Number(item.hours || 0).toFixed(2)} hrs</p>
+              <p className="mt-1 text-xs text-blue-gray-500">{item.days || 0} days present</p>
+            </div>
+          ))}
+        </CardBody>
+      </Card>
 
       {/* Attendance logs table */}
       <AttendanceList

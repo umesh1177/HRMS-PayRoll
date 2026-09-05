@@ -306,7 +306,12 @@ async function createRequest(req, res, next) {
   try {
     const { employee_id, time_off_type_id, allocation_id, start_date, end_date, reason, status } = req.body;
 
-    // Self-service resolution: if employee_id not passed, use req.user.employee_id
+    const [adminRows] = await pool.query(
+      `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+       WHERE rp.role_id = ? AND p.code = 'system.admin' LIMIT 1`,
+      [req.user.role_id]
+    );
+    const isAdmin = adminRows.length > 0;
     const targetEmployeeId = employee_id || req.user.employee_id;
 
     if (!targetEmployeeId || !time_off_type_id || !start_date || !end_date) {
@@ -315,22 +320,74 @@ async function createRequest(req, res, next) {
       error.code = 'VALIDATION_ERROR';
       return next(error);
     }
+    if (!isAdmin && Number(targetEmployeeId) !== Number(req.user.employee_id)) {
+      const error = new Error('You can only create a time off request for yourself');
+      error.status = 403;
+      error.code = 'FORBIDDEN';
+      return next(error);
+    }
 
     const duration = calculateLeaveDuration(start_date, end_date);
-    const requestStatus = status || 'submitted'; // Default to submitted for approval
+    const requestStatus = status || 'submitted';
+    if (!['draft', 'submitted'].includes(requestStatus)) {
+      const error = new Error('New time off requests can only be draft or submitted');
+      error.status = 400;
+      error.code = 'INVALID_STATE';
+      return next(error);
+    }
+
+    const [[timeOffType]] = await pool.query(
+      'SELECT id, requires_allocation, active FROM time_off_types WHERE id = ?',
+      [time_off_type_id]
+    );
+    if (!timeOffType || !timeOffType.active) {
+      const error = new Error('Selected time off type is not active');
+      error.status = 400;
+      error.code = 'VALIDATION_ERROR';
+      return next(error);
+    }
+
+    const [overlaps] = await pool.query(
+      `SELECT id FROM time_off_requests
+       WHERE employee_id = ? AND status IN ('submitted', 'approved')
+       AND start_date <= ? AND end_date >= ? LIMIT 1`,
+      [targetEmployeeId, end_date, start_date]
+    );
+    if (overlaps.length > 0) {
+      const error = new Error('This request overlaps an existing submitted or approved request');
+      error.status = 409;
+      error.code = 'OVERLAPPING_REQUEST';
+      return next(error);
+    }
 
     // If type requires allocation and allocation_id wasn't passed, find active allocation
     let resolvedAllocationId = allocation_id || null;
+    if (resolvedAllocationId) {
+      const [[allocation]] = await pool.query(
+        `SELECT id FROM time_off_allocations
+         WHERE id = ? AND employee_id = ? AND time_off_type_id = ? AND status = 'approved'
+         AND valid_from <= ? AND (valid_to >= ? OR valid_to IS NULL)`,
+        [resolvedAllocationId, targetEmployeeId, time_off_type_id, start_date, end_date]
+      );
+      if (!allocation) resolvedAllocationId = null;
+    }
     if (!resolvedAllocationId) {
       const [allocRows] = await pool.query(
         `SELECT id FROM time_off_allocations 
-         WHERE employee_id = ? AND time_off_type_id = ? AND status = 'approved' AND (valid_to >= ? OR valid_to IS NULL)
+         WHERE employee_id = ? AND time_off_type_id = ? AND status = 'approved'
+         AND valid_from <= ? AND (valid_to >= ? OR valid_to IS NULL)
          LIMIT 1`,
-        [targetEmployeeId, time_off_type_id, start_date]
+        [targetEmployeeId, time_off_type_id, start_date, end_date]
       );
       if (allocRows.length > 0) {
         resolvedAllocationId = allocRows[0].id;
       }
+    }
+    if (timeOffType.requires_allocation && !resolvedAllocationId) {
+      const error = new Error('An approved allocation is required for this leave type and date range');
+      error.status = 400;
+      error.code = 'ALLOCATION_REQUIRED';
+      return next(error);
     }
 
     const insertSql = `
@@ -369,9 +426,17 @@ async function createRequest(req, res, next) {
 async function submitRequest(req, res, next) {
   try {
     const { id } = req.params;
+    const [adminRows] = await pool.query(
+      `SELECT 1 FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id
+       WHERE rp.role_id = ? AND p.code = 'system.admin' LIMIT 1`,
+      [req.user.role_id]
+    );
+    const ownershipClause = adminRows.length > 0 ? '' : ' AND employee_id = ?';
+    const params = adminRows.length > 0 ? [id] : [id, req.user.employee_id];
     const [result] = await pool.query(
-      'UPDATE time_off_requests SET status = "submitted" WHERE id = ? AND status = "draft"',
-      [id]
+      `UPDATE time_off_requests SET status = 'submitted'
+       WHERE id = ? AND status = 'draft'${ownershipClause}`,
+      params
     );
 
     if (result.affectedRows === 0) {

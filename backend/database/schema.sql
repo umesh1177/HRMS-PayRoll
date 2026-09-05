@@ -93,21 +93,23 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'Employee'
   AND p.code IN ('employee.view_own','attendance.view_own','attendance.create_own',
-                 'timeoff.request_own','timeoff.view_own');
+                                 'timeoff.request_own','timeoff.view_own','payroll.payslip.view');
 
 -- HR Manager: full HR CRUD, no payroll
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'HR Manager'
   AND p.code IN ('employee.view_all','employee.manage','attendance.manage_all',
-                 'contract.manage','schedule.manage','timeoff.approve','timeoff.manage_config');
+                                 'contract.manage','schedule.manage','timeoff.request_own','timeoff.view_own',
+                                 'timeoff.approve','timeoff.manage_config');
 
 -- HR Payroll User: everything HR Manager has + read/write Payrun & Payslip, read-only Structures/Rules
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'HR Payroll User'
   AND p.code IN ('employee.view_all','employee.manage','attendance.manage_all',
-                 'contract.manage','schedule.manage','timeoff.approve','timeoff.manage_config',
+                                 'contract.manage','schedule.manage','timeoff.request_own','timeoff.view_own',
+                                 'timeoff.approve','timeoff.manage_config',
                  'payroll.payrun.manage','payroll.payslip.view','payroll.structure.view');
 
 -- HR Payroll Manager: everything above + full Structure/Rule CRUD
@@ -115,7 +117,8 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = 'HR Payroll Manager'
   AND p.code IN ('employee.view_all','employee.manage','attendance.manage_all',
-                 'contract.manage','schedule.manage','timeoff.approve','timeoff.manage_config',
+                                 'contract.manage','schedule.manage','timeoff.request_own','timeoff.view_own',
+                                 'timeoff.approve','timeoff.manage_config',
                  'payroll.payrun.manage','payroll.payslip.view','payroll.structure.view',
                  'payroll.structure.manage');
 
@@ -203,6 +206,7 @@ CREATE TABLE users (
     employee_id   INT NULL UNIQUE,               -- NULL allowed for e.g. pure Admin accounts
     email         VARCHAR(120) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    must_change_password TINYINT(1) NOT NULL DEFAULT 0,
     role_id       INT NOT NULL,
     status        ENUM('active','disabled') NOT NULL DEFAULT 'active',
     last_login_at DATETIME NULL,

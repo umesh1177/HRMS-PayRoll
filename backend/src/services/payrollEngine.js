@@ -104,19 +104,21 @@ async function computeEmployeeSalary({ contractId, salaryStructureId, periodStar
   // 3. Attendance & Worked Days Integration
   const totalBusinessDays = getBusinessDaysCount(periodStart, periodEnd);
 
-  // Query actual present/overtime attendance records in the period
+  // Query actual present, late, or overtime attendance records in the period
   const [attRows] = await pool.query(
     `SELECT COUNT(DISTINCT DATE(check_in)) AS present_days,
+            SUM(status = 'absent') AS absent_count,
             SUM(status = 'missing_checkout') AS missing_checkout_count
      FROM attendances 
      WHERE employee_id = ? AND DATE(check_in) >= ? AND DATE(check_in) <= ?`,
     [employeeId, periodStart, periodEnd]
   );
 
-  const presentDays = attRows[0]?.present_days || totalBusinessDays;
-  const missingCheckoutCount = attRows[0]?.missing_checkout_count || 0;
+  const rawPresentDays = Number(attRows[0]?.present_days || 0);
+  const unexcusedAbsenceDays = Number(attRows[0]?.absent_count || 0);
+  const missingCheckoutCount = Number(attRows[0]?.missing_checkout_count || 0);
 
-  // Query unpaid leave days that affect payroll
+  // Query approved unpaid leave days that affect payroll (time_off_types.affects_payroll = TRUE)
   const [unpaidLeaveRows] = await pool.query(
     `SELECT SUM(r.duration) AS unpaid_days
      FROM time_off_requests r
@@ -129,7 +131,21 @@ async function computeEmployeeSalary({ contractId, salaryStructureId, periodStar
   );
 
   const unpaidDays = Number(unpaidLeaveRows[0]?.unpaid_days || 0);
-  const workedDays = Math.max(0, totalBusinessDays - unpaidDays);
+
+  /**
+   * WORKED DAYS ATTENDANCE INTEGRATION POLICY:
+   * 1. If an employee has attendance punch records in the period:
+   *    Payable worked days are driven by actual presence (present_days), deducted by approved unpaid leave.
+   *    Unexcused absences directly reduce worked days and prorate basic compensation formulas.
+   * 2. If no attendance records exist for the employee (salaried exempt role or automated timecards):
+   *    Worked days defaults to total scheduled business days minus approved unpaid leave.
+   */
+  let workedDays;
+  if (rawPresentDays > 0 || unexcusedAbsenceDays > 0) {
+    workedDays = Math.max(0, Math.min(totalBusinessDays, rawPresentDays) - unpaidDays);
+  } else {
+    workedDays = Math.max(0, totalBusinessDays - unpaidDays);
+  }
 
   // Warnings detection
   let hasWarning = false;

@@ -18,9 +18,10 @@ const { requirePermission } = require('../middleware/rbac');
 router.use(authenticateToken);
 
 // Self-service punch clock
-router.post('/check-in', attendanceController.checkIn);
-router.post('/check-out', attendanceController.checkOut);
-router.get('/current', attendanceController.getCurrentStatus);
+router.post('/check-in', requirePermission('attendance.create_own'), attendanceController.checkIn);
+router.post('/check-out', requirePermission('attendance.create_own'), attendanceController.checkOut);
+router.get('/current', requirePermission('attendance.view_own'), attendanceController.getCurrentStatus);
+router.get('/summary', requirePermission('attendance.view_own'), attendanceController.getSummary);
 
 // History listing (scoped internally to own records unless user has attendance.manage_all)
 router.get('/', attendanceController.listAttendance);
