@@ -61,7 +61,7 @@ export default function Navbar({ onToggleSidebar }) {
   return (
     <MTNavbar
       color="white"
-      className="rounded-xl transition-all sticky top-4 z-40 py-3 shadow-md shadow-blue-gray-500/5 px-4"
+      className="rounded-xl border border-zinc-200 transition-all sticky top-4 z-40 py-3 shadow-sm shadow-black/5 px-4"
       fullWidth
     >
       <div className="flex flex-col-reverse justify-between gap-4 md:flex-row md:items-center">
@@ -72,7 +72,7 @@ export default function Navbar({ onToggleSidebar }) {
               <Typography
                 variant="small"
                 color="blue-gray"
-                className="font-normal opacity-50 transition-all hover:text-indigo-600 hover:opacity-100"
+                className="font-normal opacity-50 transition-all hover:text-zinc-900 hover:opacity-100"
               >
                 Dashboard
               </Typography>
@@ -87,7 +87,7 @@ export default function Navbar({ onToggleSidebar }) {
                     variant="small"
                     color="blue-gray"
                     className={`font-normal transition-all ${
-                      isLast ? 'opacity-100 font-semibold text-indigo-700' : 'opacity-50 hover:text-indigo-600'
+                      isLast ? 'opacity-100 font-semibold text-zinc-900' : 'opacity-50 hover:text-zinc-900'
                     }`}
                   >
                     {segment.replace(/-/g, ' ')}
@@ -118,8 +118,9 @@ export default function Navbar({ onToggleSidebar }) {
                 <span className="text-sm font-semibold text-blue-gray-800">
                   {user.first_name ? `${user.first_name} ${user.last_name}` : user.email}
                 </span>
-                <span className="text-xs font-medium text-indigo-600 uppercase">
-                  {user.role}
+                <span className="text-[11px] font-medium text-zinc-500">
+                  {user.job_position_name || user.role}
+                  {user.department_name && ` - ${user.department_name}`}
                 </span>
               </div>
 
@@ -129,7 +130,7 @@ export default function Navbar({ onToggleSidebar }) {
                     <Avatar
                       variant="circular"
                       alt={user.email}
-                      className="cursor-pointer border border-indigo-500/20"
+                      className="cursor-pointer border border-zinc-300"
                       src={user.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80'}
                       size="sm"
                     />
@@ -142,7 +143,7 @@ export default function Navbar({ onToggleSidebar }) {
                   </div>
                   <MenuItem
                     onClick={() => navigate('/profile')}
-                    className="flex items-center gap-2 text-blue-gray-800 hover:bg-indigo-50 hover:text-indigo-600"
+                    className="flex items-center gap-2 text-blue-gray-800 hover:bg-zinc-100 hover:text-zinc-900"
                   >
                     <UserCircleIcon className="h-4 w-4" />
                     <Typography variant="small" className="font-semibold">

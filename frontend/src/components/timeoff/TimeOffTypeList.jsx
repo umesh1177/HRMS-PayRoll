@@ -43,7 +43,7 @@ export default function TimeOffTypeList({ types = [], loading = false, onTypeCre
   const [unit, setUnit] = useState('day');
   const [requiresAllocation, setRequiresAllocation] = useState(true);
   const [affectsPayroll, setAffectsPayroll] = useState(false);
-  const [color, setColor] = useState('#4f46e5');
+  const [color, setColor] = useState('#18181b');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -78,7 +78,7 @@ export default function TimeOffTypeList({ types = [], loading = false, onTypeCre
         <div className="flex items-center gap-2">
           <span
             className="h-3.5 w-3.5 rounded-full inline-block"
-            style={{ backgroundColor: row.color || '#4f46e5' }}
+            style={{ backgroundColor: row.color || '#18181b' }}
           />
           <span className="font-bold text-sm text-blue-gray-800">{row.name}</span>
         </div>

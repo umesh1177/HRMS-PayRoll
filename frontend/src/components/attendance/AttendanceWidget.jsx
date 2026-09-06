@@ -32,6 +32,12 @@ import axiosClient from '../../api/axiosClient';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateWithDay, formatTime, formatWorkedHours } from '../../utils/formatters';
 
+const ATTENDANCE_TARGETS = {
+  today: 8,
+  week: 40,
+  month: 160
+};
+
 /**
  * Attendance Punch Clock Widget.
  * 
@@ -48,6 +54,7 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [alertInfo, setAlertInfo] = useState({ type: '', message: '' });
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [attendanceStats, setAttendanceStats] = useState({ today_hours: 0, week_hours: 0, month_hours: 0 });
 
   // Update clock every second
   useEffect(() => {
@@ -58,7 +65,23 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
   // Fetch current session on mount
   useEffect(() => {
     fetchCurrentStatus();
+    fetchAttendanceStats();
   }, []);
+
+  // Refresh live totals periodically so an open shift updates without a page refresh.
+  useEffect(() => {
+    const statsTimer = setInterval(fetchAttendanceStats, 60000);
+    return () => clearInterval(statsTimer);
+  }, []);
+
+  const fetchAttendanceStats = async () => {
+    try {
+      const res = await axiosClient.get('/attendance/my-stats');
+      if (res.data?.data) setAttendanceStats(res.data.data);
+    } catch (err) {
+      console.warn('Could not load attendance hour totals:', err);
+    }
+  };
 
   const fetchCurrentStatus = async () => {
     try {
@@ -83,6 +106,7 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
       setIsCheckedIn(true);
       setActiveSession(res.data?.data || { check_in: new Date().toISOString() });
       setAlertInfo({ type: 'green', message: 'Check-in recorded successfully!' });
+      fetchAttendanceStats();
       if (onPunchChange) onPunchChange();
     } catch (err) {
       const msg = err.response?.data?.error?.message || 'Failed to record check-in.';
@@ -104,6 +128,7 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
         type: 'green',
         message: `Check-out recorded! Total shift duration: ${formattedDuration}.`
       });
+      fetchAttendanceStats();
       if (onPunchChange) onPunchChange();
     } catch (err) {
       const msg = err.response?.data?.error?.message || 'Failed to record check-out.';
@@ -214,6 +239,29 @@ export default function AttendanceWidget({ onPunchChange, className = '' }) {
               </Button>
             )}
           </div>
+        </div>
+
+        {/* Work-hour insight uses server aggregates, including the live open punch session. */}
+        <div className="grid grid-cols-1 gap-3 border-t border-blue-gray-100 pt-4 sm:grid-cols-3">
+          {[
+            ['Today', attendanceStats.today_hours, ATTENDANCE_TARGETS.today],
+            ['This week', attendanceStats.week_hours, ATTENDANCE_TARGETS.week],
+            ['This month', attendanceStats.month_hours, ATTENDANCE_TARGETS.month]
+          ].map(([label, worked, target]) => {
+            const remaining = Math.max(0, target - Number(worked || 0));
+            return (
+              <div key={label} className="min-w-0 rounded-xl border border-blue-gray-100 bg-blue-gray-50/40 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[11px] font-bold uppercase tracking-wide text-blue-gray-500">{label}</span>
+                  <ClockIcon className="h-4 w-4 shrink-0 text-blue-gray-700" />
+                </div>
+                <p className="mt-2 truncate font-mono text-lg font-bold text-blue-gray-900">{formatWorkedHours(worked, '0 hrs')}</p>
+                <p className="mt-1 text-[11px] text-blue-gray-500">
+                  {remaining > 0 ? `${formatWorkedHours(remaining)} remaining` : 'Target reached'}
+                </p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Informational Footer Strip inside Card */}

@@ -9,6 +9,7 @@
  */
 
 const pool = require('../config/db');
+const { getDataScope } = require('../utils/accessScope');
 
 /**
  * Lists departments with optional pagination and manager names.
@@ -21,6 +22,9 @@ async function listDepartments(req, res, next) {
   try {
     const page = req.query.page ? parseInt(req.query.page, 10) : null;
     const limit = req.query.limit ? parseInt(req.query.limit, 10) : null;
+    const dataScope = await getDataScope(req.user);
+    const scopeClause = dataScope.isAdmin ? '' : 'WHERE d.id = ?';
+    const scopeParams = dataScope.isAdmin ? [] : [dataScope.departmentId || 0];
 
     let baseQuery = `
       SELECT 
@@ -33,21 +37,22 @@ async function listDepartments(req, res, next) {
       FROM departments d
       LEFT JOIN employees e ON d.manager_id = e.id
       LEFT JOIN employees emp ON emp.department_id = d.id
+      ${scopeClause}
       GROUP BY d.id
       ORDER BY d.name ASC
     `;
 
     if (page && limit) {
       const offset = (page - 1) * limit;
-      const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM departments');
-      const [rows] = await pool.query(`${baseQuery} LIMIT ? OFFSET ?`, [limit, offset]);
+      const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM departments d ${scopeClause}`, scopeParams);
+      const [rows] = await pool.query(`${baseQuery} LIMIT ? OFFSET ?`, [...scopeParams, limit, offset]);
       return res.status(200).json({
         data: rows,
         pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
       });
     }
 
-    const [rows] = await pool.query(baseQuery);
+    const [rows] = await pool.query(baseQuery, scopeParams);
     res.status(200).json({ data: rows });
   } catch (err) {
     next(err);

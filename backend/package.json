@@ -7,7 +7,9 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "init-db": "node src/config/initDb.js",
-    "seed-db": "node src/config/seedDb.js"
+    "seed-db": "node src/config/seedDb.js",
+    "ensure-hr-payroll-user": "node src/utils/ensureHrPayrollUser.js",
+    "migrate-contract-name": "node src/utils/migrateContractName.js"
   },
   "keywords": [
     "hr",
@@ -25,6 +27,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
+    "multer": "^2.3.0",
     "mysql2": "^3.9.7",
     "nodemailer": "^10.0.0"
   },

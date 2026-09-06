@@ -69,9 +69,12 @@ export function AuthProvider({ children }) {
         console.warn('Backend unavailable, activating local mock session for demo mode.');
         let role = 'Admin';
         let perms = ['system.admin', 'employee.manage', 'employee.view_all', 'contract.manage', 'schedule.manage', 'payroll.payrun.manage'];
-        if (email.includes('hr')) {
+        if (email.includes('hrpayroll')) {
+          role = 'HR Payroll User';
+          perms = ['employee.view_all', 'employee.manage', 'attendance.manage_all', 'contract.manage', 'schedule.manage', 'timeoff.approve', 'timeoff.manage_config', 'payroll.payrun.manage', 'payroll.payslip.view', 'payroll.structure.view'];
+        } else if (email.includes('hr')) {
           role = 'HR Manager';
-          perms = ['employee.view_all', 'employee.manage', 'contract.manage', 'schedule.manage'];
+          perms = ['employee.view_all', 'employee.manage', 'attendance.manage_all', 'contract.manage', 'schedule.manage', 'timeoff.approve', 'timeoff.manage_config'];
         } else if (email.includes('payroll')) {
           role = 'HR Payroll Manager';
           perms = ['employee.view_all', 'contract.manage', 'payroll.payrun.manage', 'payroll.structure.manage'];

@@ -21,6 +21,7 @@ const {
   isValidEnum,
   createValidationError
 } = require('../utils/validators');
+const { getDataScope } = require('../utils/accessScope');
 
 /**
  * Lists employees with search, department filtering, status filtering, and pagination.
@@ -44,6 +45,7 @@ async function listEmployees(req, res, next) {
     // Check if user has permission to view all or only their own record
     // Schema reference: permissions 'employee.view_all' vs 'employee.view_own'
     const userRole = req.user.role_id;
+    const dataScope = await getDataScope(req.user);
     const [permRows] = await pool.query(
       `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'employee.view_all' OR p.code = 'system.admin')`,
       [userRole]
@@ -55,6 +57,17 @@ async function listEmployees(req, res, next) {
         return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
       }
       whereConditions.push('e.id = ?');
+      queryParams.push(req.user.employee_id);
+    } else if (!dataScope.isAdmin) {
+      if (!dataScope.departmentId) {
+        return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+      }
+      whereConditions.push('e.department_id = ?');
+      queryParams.push(dataScope.departmentId);
+    }
+
+    if (canViewAll && req.user.employee_id) {
+      whereConditions.push('e.id <> ?');
       queryParams.push(req.user.employee_id);
     }
 
@@ -147,6 +160,7 @@ async function listEmployees(req, res, next) {
 async function getEmployeeById(req, res, next) {
   try {
     const { id } = req.params;
+    const dataScope = await getDataScope(req.user);
 
     const query = `
       SELECT 
@@ -186,10 +200,11 @@ async function getEmployeeById(req, res, next) {
       LEFT JOIN working_schedules ws ON e.working_schedule_id = ws.id
       LEFT JOIN users u ON u.employee_id = e.id
       WHERE e.id = ?
+        AND (? = 1 OR e.department_id = ?)
       LIMIT 1
     `;
 
-    const [rows] = await pool.query(query, [id]);
+    const [rows] = await pool.query(query, [id, dataScope.isAdmin ? 1 : 0, dataScope.departmentId || 0]);
     if (rows.length === 0) {
       const error = new Error(`Employee with ID ${id} not found`);
       error.status = 404;

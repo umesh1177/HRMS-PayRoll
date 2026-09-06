@@ -11,6 +11,7 @@
 
 const pool = require('../config/db');
 const { calculateWorkedHours, evaluateAttendanceStatus } = require('../services/attendanceService');
+const { getDataScope } = require('../utils/accessScope');
 const {
   isValidDate,
   isValidDateRange,
@@ -26,8 +27,9 @@ async function resolveEmployeeId(user) {
   if (user.employee_id) return user.employee_id;
   if (!user.id && !user.email) return null;
   const [emp] = await pool.query(
-    'SELECT id FROM employees WHERE user_id = ? OR email = ? LIMIT 1',
-    [user.id, user.email]
+    // employees has no user_id column; resolve legacy accounts by their unique email.
+    'SELECT id FROM employees WHERE email = ? LIMIT 1',
+    [user.email]
   );
   return emp.length > 0 ? emp[0].id : null;
 }
@@ -44,6 +46,7 @@ async function resolveEmployeeId(user) {
 async function checkIn(req, res, next) {
   try {
     const employeeId = await resolveEmployeeId(req.user);
+    const dataScope = await getDataScope(req.user);
     if (!employeeId) {
       const error = new Error('No employee profile linked to current user account');
       error.status = 400;
@@ -257,14 +260,10 @@ async function listAttendance(req, res, next) {
     const { employee_id, from, to, status, self } = req.query;
 
     const employeeId = await resolveEmployeeId(req.user);
+    const dataScope = await getDataScope(req.user);
 
     // Check if user is System Admin
-    const userRole = req.user.role_id;
-    const [permRows] = await pool.query(
-      `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'system.admin')`,
-      [userRole]
-    );
-    const isSystemAdmin = permRows.length > 0;
+    const isSystemAdmin = dataScope.isAdmin;
 
     let whereConditions = [];
     let queryParams = [];
@@ -277,6 +276,14 @@ async function listAttendance(req, res, next) {
       } else if (!isSystemAdmin) {
         return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
       }
+    }
+
+    if (dataScope.isAdmin === false && isSystemAdmin === false) {
+      if (!dataScope.departmentId) {
+        return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+      }
+      whereConditions.push('e.department_id = ?');
+      queryParams.push(dataScope.departmentId);
     }
 
     if (from) {
@@ -296,7 +303,11 @@ async function listAttendance(req, res, next) {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    const countSql = `SELECT COUNT(*) as total FROM attendances a ${whereClause}`;
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM attendances a
+      JOIN employees e ON a.employee_id = e.id
+      ${whereClause}`;
     const [[{ total }]] = await pool.query(countSql, queryParams);
 
     // Main query with joined employee and editor names

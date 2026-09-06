@@ -90,18 +90,18 @@ export default function NetSalaryTrendChart({ data = [] }) {
               <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
                 <defs>
                   <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.05} />
+                    <stop offset="5%" stopColor="#18181b" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#18181b" stopOpacity={0.05} />
                   </linearGradient>
                   <linearGradient id="colorGross" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#71717a" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#71717a" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#71717a' }} />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: '#71717a' }}
                   tickFormatter={(val) => `$${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
                 />
                 <Tooltip content={<CustomTrendTooltip />} />
@@ -110,7 +110,7 @@ export default function NetSalaryTrendChart({ data = [] }) {
                   type="monotone"
                   dataKey="total_gross"
                   name="Gross Total ($)"
-                  stroke="#06b6d4"
+                  stroke="#71717a"
                   fillOpacity={1}
                   fill="url(#colorGross)"
                 />
@@ -118,7 +118,7 @@ export default function NetSalaryTrendChart({ data = [] }) {
                   type="monotone"
                   dataKey="total_net"
                   name="Net Paid ($)"
-                  stroke="#4f46e5"
+                  stroke="#18181b"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorNet)"

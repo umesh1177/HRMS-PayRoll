@@ -18,17 +18,16 @@
 
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Alert } from '@material-tailwind/react';
 import {
-  Card,
-  CardHeader,
-  CardBody,
-  CardFooter,
-  Input,
-  Button,
-  Typography,
-  Alert
-} from '@material-tailwind/react';
-import { LockClosedIcon, EnvelopeIcon, InformationCircleIcon } from '@heroicons/react/24/solid';
+  ArrowRightIcon,
+  CheckCircleIcon,
+  EnvelopeIcon,
+  InformationCircleIcon,
+  LockClosedIcon,
+  EyeIcon,
+  EyeSlashIcon
+} from '@heroicons/react/24/solid';
 import { useAuth } from '../context/AuthContext';
 
 /**
@@ -45,6 +44,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const redirectPath = location.state?.from?.pathname || '/dashboard';
 
@@ -78,121 +78,133 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center bg-blue-gray-50/50 p-4">
-      {/* Background Graphic Banner */}
-      <div className="absolute inset-0 h-1/2 bg-gradient-to-r from-blue-gray-900 to-indigo-900 shadow-xl" />
+    <div className="login-page min-h-screen w-full p-4 sm:p-6 lg:p-10">
+      <div className="login-frame mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl shadow-[#25123b]/20 lg:min-h-[min(780px,calc(100vh-5rem))] lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="login-visual relative overflow-hidden bg-[#18181b] px-7 py-8 text-white sm:px-12 sm:py-10 lg:px-16 lg:py-14">
+          <div className="login-grid absolute inset-0 opacity-30" />
+          <div className="login-accent absolute right-0 top-0 h-full w-1/2 opacity-60" />
 
-      <Card className="relative z-10 w-full max-w-[24rem] shadow-2xl border border-blue-gray-100">
-        <CardHeader
-          variant="gradient"
-          color="indigo"
-          className="mb-4 grid h-28 place-items-center text-center shadow-indigo-500/40"
-        >
-          <div>
-            <Typography variant="h3" color="white" className="font-bold tracking-tight">
-              PeoplePay360
-            </Typography>
-            <Typography variant="small" color="white" className="opacity-80 text-xs mt-1">
-              HR & Enterprise Payroll Suite
-            </Typography>
-          </div>
-        </CardHeader>
-
-        <form onSubmit={handleSubmit}>
-          <CardBody className="flex flex-col gap-4">
-            {errorMessage && (
-              <Alert
-                color="red"
-                variant="gradient"
-                icon={<InformationCircleIcon className="h-5 w-5" />}
-                className="text-xs py-2 px-3"
-              >
-                {errorMessage}
-              </Alert>
-            )}
-
-            <div className="space-y-1">
-              <Typography variant="small" color="blue-gray" className="font-medium text-xs">
-                Email Address
-              </Typography>
-              <Input
-                type="email"
-                size="lg"
-                placeholder="name@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                icon={<EnvelopeIcon className="h-5 w-5 text-blue-gray-400" />}
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Typography variant="small" color="blue-gray" className="font-medium text-xs">
-                Password
-              </Typography>
-              <Input
-                type="password"
-                size="lg"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                icon={<LockClosedIcon className="h-5 w-5 text-blue-gray-400" />}
-                required
-              />
-            </div>
-          </CardBody>
-
-          <CardFooter className="pt-0 flex flex-col gap-3">
-            <Button
-              variant="gradient"
-              color="indigo"
-              fullWidth
-              type="submit"
-              disabled={loading || !email || !password}
-              className="py-3"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
-
-            {/* Quick Demo Credentials Assistant */}
-            <div className="mt-2 rounded-lg bg-blue-gray-50 p-3 border border-blue-gray-100">
-              <Typography variant="small" color="blue-gray" className="font-semibold text-xs mb-1.5">
-                ⚡ Quick Demo Credentials:
-              </Typography>
-              <div className="grid grid-cols-2 gap-1 text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('admin@peoplepay360.com', 'Admin@123')}
-                  className="text-left font-medium text-indigo-600 hover:underline"
-                >
-                  • Admin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('hrmanager@peoplepay360.com', 'HR@123')}
-                  className="text-left font-medium text-indigo-600 hover:underline"
-                >
-                  • HR Manager
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('payrollmgr@peoplepay360.com', 'Payroll@123')}
-                  className="text-left font-medium text-indigo-600 hover:underline"
-                >
-                  • Payroll Manager
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('employee@peoplepay360.com', 'Emp@123')}
-                  className="text-left font-medium text-indigo-600 hover:underline"
-                >
-                  • Employee
-                </button>
+          <div className="relative flex h-full flex-col">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white text-lg font-black text-[#18181b] shadow-lg shadow-black/20">
+                360
+              </div>
+              <div>
+                <p className="text-lg font-extrabold tracking-tight">PeoplePay360</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">People operations</p>
               </div>
             </div>
-          </CardFooter>
-        </form>
-      </Card>
+
+            <div className="relative mt-auto max-w-lg pb-8 pt-24 lg:pb-10">
+              <p className="mb-5 text-xs font-bold uppercase tracking-[0.24em] text-zinc-400">One calm place for your people</p>
+              <h1 className="max-w-md text-4xl font-black leading-[1.02] tracking-[-0.04em] sm:text-6xl">
+                Work, pay, and people in sync.
+              </h1>
+                <p className="mt-6 max-w-md text-sm leading-7 text-zinc-300 sm:text-base">
+                A clear operating system for attendance, contracts, time off, and payroll that keeps every team moving with confidence.
+              </p>
+
+              <div className="mt-10 grid gap-3 text-sm font-semibold sm:grid-cols-2">
+                {['Real-time workforce visibility', 'Payroll-ready records', 'Simple role-based access', 'Built for growing teams'].map((item) => (
+                  <div key={item} className="flex items-center gap-2 text-zinc-200">
+                    <CheckCircleIcon className="h-5 w-5 shrink-0 text-white" />
+                    <span className="text-zinc-200">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="relative text-xs font-medium text-zinc-500">PeoplePay360 / Workforce command center</p>
+          </div>
+        </section>
+
+        <section className="flex items-center bg-white px-7 py-10 sm:px-12 lg:px-16">
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-9">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Welcome back</p>
+              <h2 className="text-3xl font-black tracking-[-0.03em] text-zinc-900 sm:text-4xl">Sign in to your workspace</h2>
+              <p className="mt-3 text-sm leading-6 text-zinc-500">Use your work account to continue to PeoplePay360.</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {errorMessage && (
+                <Alert
+                  color="red"
+                  variant="ghost"
+                  icon={<InformationCircleIcon className="h-5 w-5" />}
+                  className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700"
+                >
+                  {errorMessage}
+                </Alert>
+              )}
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.12em] text-zinc-600">Email address</span>
+                <div className="login-input-wrap">
+                  <EnvelopeIcon className="h-5 w-5 text-zinc-400" />
+                  <input
+                    type="email"
+                    placeholder="name@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="login-input"
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-600">Password</span>
+                  <span className="text-xs font-semibold text-zinc-400">Keep it private</span>
+                </div>
+                <div className="login-input-wrap">
+                  <LockClosedIcon className="h-5 w-5 text-zinc-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="login-input"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-zinc-400 transition hover:text-zinc-900" aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                  </button>
+                </div>
+              </label>
+
+              <button
+                type="submit"
+                disabled={loading || !email || !password}
+                className="login-submit group flex w-full items-center justify-center gap-2 rounded-xl bg-[#18181b] px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-black/20 transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading ? 'Signing in...' : 'Continue to workspace'}
+                {!loading && <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
+              </button>
+            </form>
+
+            <div className="mt-8 border-t border-zinc-200 pt-5">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Demo access</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ['Admin', 'admin@peoplepay360.com', 'Admin@123'],
+                  ['HR Manager', 'hrmanager@peoplepay360.com', 'HR@123'],
+                  ['HR Payroll User', 'hrpayroll@peoplepay360.com', 'HRPayroll@123'],
+                  ['Payroll Manager', 'payrollmgr@peoplepay360.com', 'Payroll@123'],
+                  ['Employee', 'employee@peoplepay360.com', 'Emp@123']
+                ].map(([label, demoEmail, demoPass]) => (
+                  <button key={label} type="button" onClick={() => handleQuickFill(demoEmail, demoPass)} className="rounded-lg border border-zinc-200 px-3 py-2 text-left text-xs font-semibold text-zinc-600 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-900">
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <p className="mt-8 text-center text-xs text-zinc-400">Secure access for your organization</p>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

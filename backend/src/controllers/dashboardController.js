@@ -11,6 +11,7 @@
  */
 
 const pool = require('../config/db');
+const { getDataScope } = require('../utils/accessScope');
 
 /**
  * Retrieves the comprehensive executive dashboard summary in ONE round-trip.
@@ -24,21 +25,23 @@ const pool = require('../config/db');
 async function getSummary(req, res, next) {
   try {
     const { period, department_id, employee_type } = req.query;
+    const dataScope = await getDataScope(req.user);
+    const scopedDepartmentId = dataScope.isAdmin ? department_id : (dataScope.departmentId || 0);
 
     // 1. High-level entity counters (active employees, active running contracts)
     let empWhere = "WHERE status = 'active'";
     const empParams = [];
-    if (department_id) {
+    if (scopedDepartmentId) {
       empWhere += ' AND department_id = ?';
-      empParams.push(department_id);
+      empParams.push(scopedDepartmentId);
     }
     const empCountPromise = pool.query(`SELECT COUNT(*) as count FROM employees ${empWhere}`, empParams);
 
     let contractWhere = "WHERE status = 'running'";
     const contractParams = [];
-    if (department_id) {
+    if (scopedDepartmentId) {
       contractWhere += ' AND department_id = ?';
-      contractParams.push(department_id);
+      contractParams.push(scopedDepartmentId);
     }
     if (employee_type) {
       contractWhere += ' AND contract_type = ?';
@@ -49,6 +52,12 @@ async function getSummary(req, res, next) {
     // 2. Payslip Status Breakdown
     let slipWhere = 'WHERE 1=1';
     const slipParams = [];
+    let slipJoin = '';
+    if (!dataScope.isAdmin) {
+      slipJoin = ' JOIN employees se ON se.id = p.employee_id';
+      slipWhere += ' AND se.department_id = ?';
+      slipParams.push(scopedDepartmentId);
+    }
     if (period) {
       slipWhere += ' AND DATE_FORMAT(p.period_start, "%Y-%m") = ?';
       slipParams.push(period);
@@ -63,6 +72,7 @@ async function getSummary(req, res, next) {
         COALESCE(SUM(CASE WHEN p.status = 'paid' THEN p.net_amount ELSE 0 END), 0) AS total_net_paid,
         COALESCE(SUM(p.gross_amount), 0) AS total_gross_amount
       FROM payslips p
+      ${slipJoin}
       ${slipWhere}
     `, slipParams);
 
@@ -74,9 +84,9 @@ async function getSummary(req, res, next) {
       deptPayrollWhere += ' AND DATE_FORMAT(period_start, "%Y-%m") = ?';
       deptPayrollParams.push(period);
     }
-    if (department_id) {
+    if (scopedDepartmentId) {
       deptPayrollWhere += ' AND department_id = ?';
-      deptPayrollParams.push(department_id);
+      deptPayrollParams.push(scopedDepartmentId);
     }
     const deptPayrollPromise = pool.query(`
       SELECT 
@@ -94,15 +104,29 @@ async function getSummary(req, res, next) {
 
     // 4. Monthly Net Salary Trend (from vw_monthly_payroll_trend)
     // Schema reference: vw_monthly_payroll_trend
+    const monthlyTrendScope = dataScope.isAdmin ? '' : 'WHERE e.department_id = ?';
+    const monthlyTrendParams = dataScope.isAdmin ? [] : [scopedDepartmentId];
     const monthlyTrendPromise = pool.query(`
-      SELECT month_key, month_label, total_gross, total_net, total_paid_net, payslip_count
-      FROM vw_monthly_payroll_trend
+      SELECT
+        DATE_FORMAT(py.period_start, '%Y-%m') AS month_key,
+        DATE_FORMAT(py.period_start, '%b %Y') AS month_label,
+        COALESCE(SUM(p.gross_amount), 0) AS total_gross,
+        COALESCE(SUM(p.net_amount), 0) AS total_net,
+        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN p.net_amount ELSE 0 END), 0) AS total_paid_net,
+        COUNT(p.id) AS payslip_count
+      FROM payslips p
+      JOIN payruns py ON p.payrun_id = py.id
+      JOIN employees e ON e.id = p.employee_id
+      ${monthlyTrendScope}
+      GROUP BY DATE_FORMAT(py.period_start, '%Y-%m'), DATE_FORMAT(py.period_start, '%b %Y')
       ORDER BY month_key DESC
       LIMIT 12
-    `);
+    `, monthlyTrendParams);
 
     // 5. Attendance Health Overview (from vw_attendance_overview)
     // Schema reference: vw_attendance_overview
+    const attendanceScope = dataScope.isAdmin ? '' : 'WHERE e.department_id = ?';
+    const attendanceParams = dataScope.isAdmin ? [] : [scopedDepartmentId];
     const attendancePromise = pool.query(`
       SELECT 
         COUNT(DISTINCT a.employee_id) AS active_employees_logged,
@@ -112,14 +136,25 @@ async function getSummary(req, res, next) {
         COALESCE(SUM(a.overtime_count), 0) AS overtime_count,
         COALESCE(SUM(a.missing_checkout_count), 0) AS missing_checkout_count
       FROM vw_attendance_overview a
-    `);
+      JOIN employees e ON e.id = a.employee_id
+      ${attendanceScope}
+    `, attendanceParams);
 
     // 6. Time Off Summary (from vw_time_off_summary)
     // Schema reference: vw_time_off_summary
+    const timeOffScope = dataScope.isAdmin ? '' : 'WHERE e.department_id = ?';
+    const timeOffParams = dataScope.isAdmin ? [] : [scopedDepartmentId];
     const timeOffPromise = pool.query(`
-      SELECT total_requests, pending_approvals, approved_requests, refused_requests, total_leave_days
-      FROM vw_time_off_summary
-    `);
+      SELECT
+        COUNT(*) AS total_requests,
+        COALESCE(SUM(r.status = 'submitted'), 0) AS pending_approvals,
+        COALESCE(SUM(r.status = 'approved'), 0) AS approved_requests,
+        COALESCE(SUM(r.status = 'refused'), 0) AS refused_requests,
+        COALESCE(SUM(r.duration), 0) AS total_leave_days
+      FROM time_off_requests r
+      JOIN employees e ON e.id = r.employee_id
+      ${timeOffScope}
+    `, timeOffParams);
 
     // 7. Flagged Warnings List (payslips with has_warning = TRUE)
     const warningsPromise = pool.query(`
@@ -139,9 +174,10 @@ async function getSummary(req, res, next) {
       JOIN employees e ON p.employee_id = e.id
       LEFT JOIN departments d ON e.department_id = d.id
       WHERE p.has_warning = TRUE
+        ${dataScope.isAdmin ? '' : 'AND e.department_id = ?'}
       ORDER BY p.id DESC
       LIMIT 20
-    `);
+    `, dataScope.isAdmin ? [] : [scopedDepartmentId]);
 
     // Execute all analytical queries in parallel
     const [

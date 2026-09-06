@@ -11,6 +11,7 @@
  */
 
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -32,10 +33,20 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const app = express();
 
 // Security and utility middlewares
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      imgSrc: ["'self'", 'data:', 'blob:', 'http://localhost:5000', 'http://127.0.0.1:5000', 'https://images.unsplash.com', 'https://ui-avatars.com']
+    }
+  },
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Profile images are public read-only assets; writes still require the protected upload route.
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Router for API v1
 const apiRouter = express.Router();

@@ -103,6 +103,7 @@ UPDATE departments SET manager_id = 10 WHERE id = 6;
 -- Standard passwords:
 --   Admin:         admin@peoplepay360.com       / Admin@123
 --   HR Manager:    hrmanager@peoplepay360.com   / HR@123
+--   HR Payroll:    hrpayroll@peoplepay360.com   / HRPayroll@123
 --   Payroll Mgr:   payrollmgr@peoplepay360.com  / Payroll@123
 --   Employee:      employee@peoplepay360.com    / Emp@123
 --   Alice:         alice.smith@peoplepay360.com / Emp@123
@@ -112,6 +113,7 @@ UPDATE departments SET manager_id = 10 WHERE id = 6;
 INSERT INTO users (id, employee_id, email, password_hash, role_id, status) VALUES
   (1, NULL, 'admin@peoplepay360.com', '$2b$10$n0WCUuk.rOrJTewDoVKo.ORCUDKYKJFjArxxpPN3.Hnr7Xgcs/HAK', 1, 'active'),
   (2, 3, 'hrmanager@peoplepay360.com', '$2b$10$.4y2Ja64AbxCpkE4l0l.PemMHIN141QGFIp8nH.72gkaLCgXQgClu', 2, 'active'),
+  (8, 8, 'hrpayroll@peoplepay360.com', '$2b$10$6kLWDwB4JqypS9CiFe4fcejiDrSaxUgvSYI1daElOtrOjb.cPcMTS', 3, 'active'),
   (3, 4, 'payrollmgr@peoplepay360.com', '$2b$10$xOlwKJgmOOl4wzF2nvkqHusr6DwLU85Ws2U4WkWQIXfAI4TFIYTU2', 4, 'active'),
   (4, 2, 'employee@peoplepay360.com', '$2b$10$v9EF1/mXOHrHvYTxomHfWOmd8xkQlphMTjAee87dgIWXV187/CAhe', 5, 'active'),
   (5, 1, 'alice.smith@peoplepay360.com', '$2b$10$v9EF1/mXOHrHvYTxomHfWOmd8xkQlphMTjAee87dgIWXV187/CAhe', 5, 'active'),

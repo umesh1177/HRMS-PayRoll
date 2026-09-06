@@ -94,7 +94,7 @@ export default function AttendanceList({
         const colorMap = {
           present: 'green',
           late: 'amber',
-          overtime: 'indigo',
+          overtime: 'yellow',
           absent: 'red',
           missing_checkout: 'blue-gray'
         };

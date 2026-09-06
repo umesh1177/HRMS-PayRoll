@@ -104,14 +104,14 @@ export default function Sidebar({ isOpen = true, onClose }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 my-4 ml-4 w-72 rounded-xl bg-gradient-to-br from-blue-gray-800 to-blue-gray-900 shadow-2xl transition-transform duration-300 xl:translate-x-0 ${
+      className={`fixed inset-y-0 left-0 z-50 my-4 ml-4 w-72 rounded-xl bg-gradient-to-br from-[#18181b] to-[#09090b] shadow-2xl shadow-black/20 transition-transform duration-300 xl:translate-x-0 ${
         isOpen ? 'translate-x-0' : '-translate-x-80'
       } flex flex-col justify-between`}
     >
       <div className="p-4 overflow-y-auto max-h-[calc(100vh-120px)] custom-scrollbar">
         {/* Brand Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md font-black text-lg">
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-[#18181b] shadow-md font-black text-lg">
             360
           </div>
           <div>
@@ -134,8 +134,8 @@ export default function Sidebar({ isOpen = true, onClose }) {
                   className={({ isActive }) =>
                     `flex items-center gap-3.5 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 ${
                       isActive
-                        ? 'bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white shadow-md shadow-indigo-500/20'
-                        : 'text-blue-gray-200 hover:bg-white/10 hover:text-white'
+                        ? 'border-l-2 border-white bg-white/10 text-white shadow-md shadow-black/10'
+                        : 'border-l-2 border-transparent text-blue-gray-200 hover:bg-white/10 hover:text-white'
                     }`
                   }
                 >
@@ -147,16 +147,6 @@ export default function Sidebar({ isOpen = true, onClose }) {
         </div>
       </div>
 
-      {/* User Info Footer in Sidebar */}
-      {user && (
-        <div className="p-4 m-3 rounded-lg bg-white/5 border border-white/10 text-xs">
-          <p className="text-blue-gray-400">Logged in as:</p>
-          <p className="font-semibold text-white truncate">{user.email}</p>
-          <span className="inline-block mt-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold uppercase text-[10px]">
-            {user.role}
-          </span>
-        </div>
-      )}
     </aside>
   );
 }
