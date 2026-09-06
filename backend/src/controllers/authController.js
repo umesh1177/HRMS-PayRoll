@@ -51,10 +51,14 @@ async function login(req, res, next) {
         r.name AS role_name,
         e.first_name,
         e.last_name,
-        e.photo_url
+        e.photo_url,
+        jp.title AS job_position_name,
+        d.name AS department_name
       FROM users u
       JOIN roles r ON u.role_id = r.id
       LEFT JOIN employees e ON u.employee_id = e.id
+      LEFT JOIN job_positions jp ON e.job_position_id = jp.id
+      LEFT JOIN departments d ON e.department_id = d.id
       WHERE u.email = ?
       LIMIT 1
     `;
@@ -146,6 +150,8 @@ async function login(req, res, next) {
       first_name: user.first_name || null,
       last_name: user.last_name || null,
       photo_url: user.photo_url || null,
+      job_position_name: user.job_position_name || null,
+      department_name: user.department_name || null,
       status: user.status,
       permissions
     };
@@ -508,7 +514,7 @@ async function getMe(req, res, next) {
         e.photo_url,
         e.date_joined,
         d.name AS department_name,
-        jp.name AS job_position_name,
+        jp.title AS job_position_name,
         CONCAT(m.first_name, ' ', m.last_name) AS manager_name,
         ws.name AS working_schedule_name
       FROM users u
@@ -628,6 +634,7 @@ async function getMe(req, res, next) {
  */
 async function updateMyProfile(req, res, next) {
   const connection = await pool.getConnection();
+  let transactionStarted = false;
   try {
     const userId = req.user.id;
     const { first_name, last_name, phone, photo_url, current_password, new_password } = req.body;
@@ -652,6 +659,7 @@ async function updateMyProfile(req, res, next) {
     }
 
     await connection.beginTransaction();
+    transactionStarted = true;
 
     // 1. If employee record does not exist yet, create one so user profile persists
     if (!employeeId) {
@@ -738,7 +746,7 @@ async function updateMyProfile(req, res, next) {
         e.photo_url,
         e.date_joined,
         d.name AS department_name,
-        jp.name AS job_position_name,
+        jp.title AS job_position_name,
         CONCAT(m.first_name, ' ', m.last_name) AS manager_name,
         ws.name AS working_schedule_name
       FROM users u
@@ -788,7 +796,7 @@ async function updateMyProfile(req, res, next) {
       }
     });
   } catch (err) {
-    await connection.rollback();
+    if (transactionStarted) await connection.rollback();
     next(err);
   } finally {
     connection.release();

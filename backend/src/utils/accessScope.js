@@ -18,13 +18,13 @@ async function getDataScope(user) {
     return { isAdmin: true, departmentId: null };
   }
 
-  if (!user?.employee_id) {
+  if (!user?.employee_id && !user?.email) {
     return { isAdmin: false, departmentId: null };
   }
 
   const [[employee]] = await pool.query(
-    'SELECT department_id FROM employees WHERE id = ? LIMIT 1',
-    [user.employee_id]
+    'SELECT department_id FROM employees WHERE id = ? OR email = ? LIMIT 1',
+    [user.employee_id || 0, user.email || '']
   );
 
   return {

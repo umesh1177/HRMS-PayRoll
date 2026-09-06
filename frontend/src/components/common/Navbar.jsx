@@ -118,8 +118,9 @@ export default function Navbar({ onToggleSidebar }) {
                 <span className="text-sm font-semibold text-blue-gray-800">
                   {user.first_name ? `${user.first_name} ${user.last_name}` : user.email}
                 </span>
-                <span className="text-xs font-medium text-zinc-500 uppercase">
-                  {user.role}
+                <span className="text-[11px] font-medium text-zinc-500">
+                  {user.job_position_name || user.role}
+                  {user.department_name && ` - ${user.department_name}`}
                 </span>
               </div>
 

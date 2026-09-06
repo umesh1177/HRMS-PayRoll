@@ -20,6 +20,16 @@ const {
 } = require('../utils/validators');
 const { getDataScope } = require('../utils/accessScope');
 
+async function resolveEmployeeId(user) {
+  if (user?.employee_id) return user.employee_id;
+  if (!user?.email) return null;
+  const [[employee]] = await pool.query(
+    'SELECT id FROM employees WHERE email = ? LIMIT 1',
+    [user.email]
+  );
+  return employee?.id || null;
+}
+
 /**
  * Lists contracts with pagination and joined relation names.
  * Automatically scopes to own employee profile if user is an Employee.
@@ -32,6 +42,7 @@ async function listContracts(req, res, next) {
 
     const { employee_id, status, department_id } = req.query;
     const dataScope = await getDataScope(req.user);
+    const currentEmployeeId = await resolveEmployeeId(req.user);
 
     let whereConditions = [];
     let queryParams = [];
@@ -42,14 +53,14 @@ async function listContracts(req, res, next) {
       `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'contract.manage' OR p.code = 'system.admin')`,
       [userRole]
     );
-    const canManage = permRows.length > 0;
+    const canManage = dataScope.isAdmin || permRows.length > 0;
 
     if (!canManage) {
-      if (!req.user.employee_id) {
+      if (!currentEmployeeId) {
         return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
       }
       whereConditions.push('c.employee_id = ?');
-      queryParams.push(req.user.employee_id);
+      queryParams.push(currentEmployeeId);
     } else if (employee_id) {
       whereConditions.push('c.employee_id = ?');
       queryParams.push(employee_id);
@@ -139,7 +150,7 @@ async function getContractById(req, res, next) {
       `SELECT p.code FROM role_permissions rp JOIN permissions p ON rp.permission_id = p.id WHERE rp.role_id = ? AND (p.code = 'contract.manage' OR p.code = 'system.admin')`,
       [userRole]
     );
-    const canManage = permRows.length > 0;
+    const canManage = dataScope.isAdmin || permRows.length > 0;
 
     let query = `
       SELECT 
@@ -174,8 +185,9 @@ async function getContractById(req, res, next) {
 
     const params = [id];
     if (!canManage) {
+      const currentEmployeeId = await resolveEmployeeId(req.user);
       query += ' AND c.employee_id = ?';
-      params.push(req.user.employee_id);
+      params.push(currentEmployeeId || 0);
     }
     query += ' LIMIT 1';
 
@@ -273,10 +285,20 @@ async function createContract(req, res, next) {
 
     const createdIds = [];
     for (const empId of targetEmployeeIds) {
+      const [employeeRows] = await connection.query(
+        'SELECT first_name, last_name, department_id FROM employees WHERE id = ? LIMIT 1',
+        [empId]
+      );
+      if (employeeRows.length === 0) {
+        const error = createValidationError(`Employee #${empId} was not found`, 'employee_id');
+        throw error;
+      }
+
+      const employee = employeeRows[0];
+      const contractDepartmentId = department_id || employee.department_id || null;
       let finalName = contractName;
       if (!finalName) {
-        const [emp] = await connection.query('SELECT first_name, last_name FROM employees WHERE id = ?', [empId]);
-        const nameSuffix = emp.length > 0 ? ` (${emp[0].first_name} ${emp[0].last_name})` : '';
+        const nameSuffix = ` (${employee.first_name} ${employee.last_name})`;
         finalName = `${(contract_type || 'Standard').toUpperCase()} Contract${nameSuffix}`;
       }
 
@@ -284,7 +306,7 @@ async function createContract(req, res, next) {
         finalName,
         empId,
         job_position_id || null,
-        department_id || null,
+        contractDepartmentId,
         working_schedule_id || null,
         salary_structure_id,
         wage,
@@ -322,10 +344,13 @@ async function createContract(req, res, next) {
  * Updates an existing contract with overlap validation.
  */
 async function updateContract(req, res, next) {
+  const connection = await pool.getConnection();
+  let transactionStarted = false;
   try {
     const { id } = req.params;
     const {
       name,
+      employee_ids,
       job_position_id,
       department_id,
       working_schedule_id,
@@ -349,24 +374,44 @@ async function updateContract(req, res, next) {
     const newStatus = status !== undefined ? status : existing.status;
     const newStartDate = start_date !== undefined ? start_date : existing.start_date;
     const newEndDate = end_date !== undefined ? end_date : existing.end_date;
+    const selectedEmployeeIds = Array.isArray(employee_ids) && employee_ids.length > 0
+      ? [...new Set(employee_ids.map(Number).filter((employeeId) => Number.isInteger(employeeId) && employeeId > 0))]
+      : [existing.employee_id];
 
-    // Enforce overlap rule if status is running
+    if (!selectedEmployeeIds.includes(existing.employee_id)) {
+      return next(createValidationError('The original employee must remain assigned to this contract.', 'employee_ids'));
+    }
+
+    const [employeeRows] = await connection.query(
+      'SELECT id, department_id FROM employees WHERE id IN (?)',
+      [selectedEmployeeIds]
+    );
+    if (employeeRows.length !== selectedEmployeeIds.length) {
+      return next(createValidationError('One or more selected employees were not found.', 'employee_ids'));
+    }
+
+    // Validate every selected employee before changing the existing row or creating clones.
     if (newStatus === 'running') {
-      const overlapCheck = await checkRunningContractOverlap(
-        existing.employee_id,
-        newStartDate,
-        newEndDate || null,
-        id
-      );
-      if (overlapCheck.hasOverlap) {
-        const error = new Error(
-          `Cannot update contract to running: employee already has an active running contract (ID #${overlapCheck.conflictingContract.id}) overlapping this date period`
+      for (const employeeId of selectedEmployeeIds) {
+        const overlapCheck = await checkRunningContractOverlap(
+          employeeId,
+          newStartDate,
+          newEndDate || null,
+          employeeId === existing.employee_id ? id : null
         );
-        error.status = 409;
-        error.code = 'CONTRACT_OVERLAP_CONFLICT';
-        return next(error);
+        if (overlapCheck.hasOverlap) {
+          const error = new Error(
+            `Cannot update contract: employee #${employeeId} already has an active running contract (ID #${overlapCheck.conflictingContract.id}) overlapping this date period`
+          );
+          error.status = 409;
+          error.code = 'CONTRACT_OVERLAP_CONFLICT';
+          return next(error);
+        }
       }
     }
+
+    await connection.beginTransaction();
+    transactionStarted = true;
 
     const updateSql = `
       UPDATE contracts SET
@@ -383,10 +428,10 @@ async function updateContract(req, res, next) {
       WHERE id = ?
     `;
 
-    await pool.query(updateSql, [
+    await connection.query(updateSql, [
       name !== undefined ? name : existing.name,
       job_position_id,
-      department_id,
+      department_id || employeeRows.find((employee) => employee.id === existing.employee_id)?.department_id || null,
       working_schedule_id,
       salary_structure_id,
       wage,
@@ -397,9 +442,46 @@ async function updateContract(req, res, next) {
       id
     ]);
 
-    res.status(200).json({ message: 'Contract updated successfully' });
+    const additionalEmployeeIds = selectedEmployeeIds.filter((employeeId) => employeeId !== existing.employee_id);
+    if (additionalEmployeeIds.length > 0) {
+      const insertSql = `
+        INSERT INTO contracts (
+          name, employee_id, job_position_id, department_id, working_schedule_id,
+          salary_structure_id, wage, contract_type, start_date, end_date, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      for (const employeeId of additionalEmployeeIds) {
+        const employee = employeeRows.find((row) => row.id === employeeId);
+        await connection.query(insertSql, [
+          name !== undefined ? name : existing.name,
+          employeeId,
+          job_position_id !== undefined ? job_position_id : existing.job_position_id,
+          department_id || employee.department_id || null,
+          working_schedule_id !== undefined ? working_schedule_id : existing.working_schedule_id,
+          salary_structure_id !== undefined ? salary_structure_id : existing.salary_structure_id,
+          wage !== undefined ? wage : existing.wage,
+          contract_type !== undefined ? contract_type : existing.contract_type,
+          newStartDate,
+          newEndDate || null,
+          newStatus
+        ]);
+      }
+    }
+
+    await connection.commit();
+
+    res.status(200).json({
+      message: additionalEmployeeIds.length > 0
+        ? `Contract updated and assigned to ${additionalEmployeeIds.length} additional employee(s)`
+        : 'Contract updated successfully',
+      data: { contract_id: id, additional_employee_count: additionalEmployeeIds.length }
+    });
   } catch (err) {
+    if (transactionStarted) await connection.rollback();
     next(err);
+  } finally {
+    connection.release();
   }
 }
 

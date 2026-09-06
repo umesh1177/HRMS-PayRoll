@@ -252,6 +252,7 @@ CREATE TABLE structure_rules (
 -- ---------------------------------------------------------------------
 CREATE TABLE contracts (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
+    name                 VARCHAR(150) NULL,
     employee_id          INT NOT NULL,
     job_position_id      INT NULL,
     department_id        INT NULL,

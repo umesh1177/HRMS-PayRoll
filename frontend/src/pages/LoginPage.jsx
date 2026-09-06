@@ -190,6 +190,7 @@ export default function LoginPage() {
                 {[
                   ['Admin', 'admin@peoplepay360.com', 'Admin@123'],
                   ['HR Manager', 'hrmanager@peoplepay360.com', 'HR@123'],
+                  ['HR Payroll User', 'hrpayroll@peoplepay360.com', 'HRPayroll@123'],
                   ['Payroll Manager', 'payrollmgr@peoplepay360.com', 'Payroll@123'],
                   ['Employee', 'employee@peoplepay360.com', 'Emp@123']
                 ].map(([label, demoEmail, demoPass]) => (

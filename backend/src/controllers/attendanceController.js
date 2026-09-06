@@ -260,6 +260,7 @@ async function listAttendance(req, res, next) {
     const { employee_id, from, to, status, self } = req.query;
 
     const employeeId = await resolveEmployeeId(req.user);
+    const dataScope = await getDataScope(req.user);
 
     // Check if user is System Admin
     const isSystemAdmin = dataScope.isAdmin;

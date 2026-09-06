@@ -66,6 +66,7 @@ async function initializeDatabase() {
     console.log('👉 Demo user accounts:');
     console.log('   • Admin:         admin@peoplepay360.com      / Admin@123');
     console.log('   • HR Manager:    hrmanager@peoplepay360.com  / HR@123');
+    console.log('   • HR Payroll:    hrpayroll@peoplepay360.com  / HRPayroll@123');
     console.log('   • Payroll Mgr:   payrollmgr@peoplepay360.com / Payroll@123');
     console.log('   • Employee:      employee@peoplepay360.com   / Emp@123\n');
   } catch (err) {

@@ -136,6 +136,8 @@ export default function ProfilePage() {
 
       if (res.data?.data) {
         let updated = res.data.data;
+        setProfileData(updated);
+        updateCachedUser(updated);
 
         // Upload the selected file separately because profile text uses JSON, while images use multipart.
         if (selectedPhoto) {
@@ -145,14 +147,11 @@ export default function ProfilePage() {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
           updated = { ...updated, photo_url: uploadResponse.data?.data?.photo_url || updated.photo_url };
+          setProfileData(updated);
+          setForm((previous) => ({ ...previous, photo_url: updated.photo_url || '' }));
+          updateCachedUser({ photo_url: updated.photo_url });
         }
 
-        setProfileData(updated);
-        updateCachedUser({
-          first_name: updated.first_name,
-          last_name: updated.last_name,
-          photo_url: updated.photo_url
-        });
         setSelectedPhoto(null);
         setPhotoPreview('');
         setProfileSuccess('Personal profile updated successfully!');

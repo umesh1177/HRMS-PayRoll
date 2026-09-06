@@ -66,6 +66,11 @@ async function listEmployees(req, res, next) {
       queryParams.push(dataScope.departmentId);
     }
 
+    if (canViewAll && req.user.employee_id) {
+      whereConditions.push('e.id <> ?');
+      queryParams.push(req.user.employee_id);
+    }
+
     if (department_id) {
       whereConditions.push('e.department_id = ?');
       queryParams.push(department_id);

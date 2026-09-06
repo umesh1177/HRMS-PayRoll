@@ -93,12 +93,12 @@ export default function ContractsPage() {
         setContracts(res.data.data);
         setTotalPages(res.data.pagination?.totalPages || 1);
       } else {
-        setContracts(mockContracts);
+        setContracts([]);
         setTotalPages(1);
       }
     } catch (err) {
-      console.warn('Backend unavailable, using mock contracts.');
-      setContracts(mockContracts);
+      console.warn('Failed to load contracts:', err);
+      setContracts([]);
       setTotalPages(1);
     } finally {
       setLoading(false);

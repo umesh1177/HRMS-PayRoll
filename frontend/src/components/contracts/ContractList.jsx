@@ -41,7 +41,7 @@ export default function ContractList({
   actionButton
 }) {
   const { hasPermission } = useAuth();
-  const canManage = hasPermission('contract.manage');
+  const canManage = hasPermission('contract.manage') || hasPermission('system.admin');
 
   const columns = [
     {
@@ -58,22 +58,20 @@ export default function ContractList({
         </div>
       )
     },
-    ...(canManage
-      ? [
-          {
-            key: 'employee_name',
-            label: 'Employee',
-            render: (row) => (
-              <div>
-                <p className="font-semibold text-xs text-blue-gray-800">{row.employee_name}</p>
-                <span className="font-mono text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-bold">
-                  {row.employee_code}
-                </span>
-              </div>
-            )
-          }
-        ]
-      : []),
+    {
+      key: 'employee_name',
+      label: 'Employee',
+      render: (row) => (
+        <div>
+          <p className="font-semibold text-xs text-blue-gray-800">{row.employee_name || 'Current employee'}</p>
+          {row.employee_code && (
+            <span className="font-mono text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-bold">
+              {row.employee_code}
+            </span>
+          )}
+        </div>
+      )
+    },
     {
       key: 'structure_name',
       label: 'Salary Structure',
