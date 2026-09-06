@@ -39,7 +39,7 @@ function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-blue-gray-50/50">
+    <div className="min-h-screen bg-[#f5f5f5]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="p-4 xl:ml-80">
         <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />

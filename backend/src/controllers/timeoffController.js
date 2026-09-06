@@ -18,6 +18,7 @@ const {
   isValidEnum,
   createValidationError
 } = require('../utils/validators');
+const { getDataScope } = require('../utils/accessScope');
 
 // ---------------------------------------------------------------------
 // 1. TIME OFF TYPES
@@ -120,6 +121,7 @@ async function updateType(req, res, next) {
 async function listAllocations(req, res, next) {
   try {
     const { employee_id, status } = req.query;
+    const dataScope = await getDataScope(req.user);
 
     const userRole = req.user.role_id;
     const [permRows] = await pool.query(
@@ -141,6 +143,12 @@ async function listAllocations(req, res, next) {
     } else if (employee_id) {
       whereConditions.push('a.employee_id = ?');
       queryParams.push(employee_id);
+    }
+
+    if (canViewAll && !dataScope.isAdmin) {
+      if (!dataScope.departmentId) return res.status(200).json({ data: [] });
+      whereConditions.push('e.department_id = ?');
+      queryParams.push(dataScope.departmentId);
     }
 
     if (status) {
@@ -226,6 +234,7 @@ async function listRequests(req, res, next) {
     const offset = (page - 1) * limit;
 
     const { employee_id, status } = req.query;
+    const dataScope = await getDataScope(req.user);
 
     const userRole = req.user.role_id;
     // Check if user has manager/approver rights
@@ -250,6 +259,14 @@ async function listRequests(req, res, next) {
       queryParams.push(employee_id);
     }
 
+    if (canApproveOrManage && !dataScope.isAdmin) {
+      if (!dataScope.departmentId) {
+        return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+      }
+      whereConditions.push('e.department_id = ?');
+      queryParams.push(dataScope.departmentId);
+    }
+
     if (status) {
       whereConditions.push('r.status = ?');
       queryParams.push(status);
@@ -257,7 +274,11 @@ async function listRequests(req, res, next) {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    const countSql = `SELECT COUNT(*) as total FROM time_off_requests r ${whereClause}`;
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM time_off_requests r
+      JOIN employees e ON r.employee_id = e.id
+      ${whereClause}`;
     const [[{ total }]] = await pool.query(countSql, queryParams);
 
     const listSql = `
@@ -318,6 +339,20 @@ async function createRequest(req, res, next) {
 
     if (!targetEmployeeId || !time_off_type_id || !start_date || !end_date) {
       return next(createValidationError('employee_id, time_off_type_id, start_date, and end_date are required'));
+    }
+
+    const dataScope = await getDataScope(req.user);
+    if (!dataScope.isAdmin && dataScope.departmentId) {
+      const [[targetEmployee]] = await pool.query(
+        'SELECT department_id FROM employees WHERE id = ? LIMIT 1',
+        [targetEmployeeId]
+      );
+      if (!targetEmployee || targetEmployee.department_id !== dataScope.departmentId) {
+        const error = new Error('You can only create time-off requests for employees in your department');
+        error.status = 403;
+        error.code = 'DEPARTMENT_SCOPE_FORBIDDEN';
+        return next(error);
+      }
     }
 
     if (!isValidDate(start_date) || !isValidDate(end_date)) {

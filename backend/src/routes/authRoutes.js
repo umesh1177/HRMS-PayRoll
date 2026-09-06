@@ -13,6 +13,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const authenticateToken = require('../middleware/auth');
 const { requirePermission } = require('../middleware/rbac');
+const profilePhotoUpload = require('../middleware/profileUpload');
 
 // Public route: Login
 router.post('/login', authController.login);
@@ -23,6 +24,7 @@ router.use(authenticateToken);
 // Current user profile & available roles
 router.get('/me', authController.getMe);
 router.put('/profile', authController.updateMyProfile);
+router.post('/profile/photo', profilePhotoUpload, authController.uploadProfilePhoto);
 router.get('/roles', authController.listRoles);
 
 // Admin user management (requires 'user.manage' permission)

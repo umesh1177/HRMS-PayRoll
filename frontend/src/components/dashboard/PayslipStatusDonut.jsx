@@ -22,10 +22,10 @@ import {
 } from 'recharts';
 
 const STATUS_COLORS = {
-  Draft: '#94a3b8',     // Slate-400
-  Computed: '#3b82f6',  // Blue-500
-  Validated: '#6366f1', // Indigo-500
-  Paid: '#22c55e'       // Green-500
+  Draft: '#d4d4d8',
+  Computed: '#a1a1aa',
+  Validated: '#52525b',
+  Paid: '#18181b'
 };
 
 const CustomPieTooltip = ({ active, payload }) => {

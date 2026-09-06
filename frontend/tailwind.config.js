@@ -11,6 +11,20 @@
 
 import withMT from '@material-tailwind/react/utils/withMT';
 
+// Keep every semantic utility color in the same neutral scale for the product-wide theme.
+const monochrome = {
+  50: '#fafafa',
+  100: '#f4f4f5',
+  200: '#e4e4e7',
+  300: '#d4d4d8',
+  400: '#71717a',
+  500: '#52525b',
+  600: '#3f3f46',
+  700: '#27272a',
+  800: '#18181b',
+  900: '#09090b'
+};
+
 export default withMT({
   content: [
     './index.html',
@@ -22,12 +36,25 @@ export default withMT({
     extend: {
       colors: {
         brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca'
-        }
+          50: '#fafafa',
+          100: '#f4f4f5',
+          500: '#52525b',
+          600: '#27272a',
+          700: '#18181b'
+        },
+        indigo: monochrome,
+        purple: monochrome,
+        violet: monochrome,
+        blue: monochrome,
+        sky: monochrome,
+        cyan: monochrome,
+        teal: monochrome,
+        emerald: monochrome,
+        green: monochrome,
+        amber: monochrome,
+        orange: monochrome,
+        red: monochrome,
+        'blue-gray': monochrome
       }
     }
   },

@@ -126,7 +126,7 @@ export default function TimeOffRequestList({
       render: (row) => (
         <span
           className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full text-white"
-          style={{ backgroundColor: row.type_color || '#4f46e5' }}
+                    style={{ backgroundColor: row.type_color || '#18181b' }}
         >
           {row.type_name}
         </span>

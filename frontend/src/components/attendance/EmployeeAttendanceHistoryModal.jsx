@@ -102,7 +102,7 @@ export default function EmployeeAttendanceHistoryModal({
     const colorMap = {
       present: 'green',
       late: 'amber',
-      overtime: 'indigo',
+      overtime: 'yellow',
       absent: 'red',
       half_day: 'orange',
       missing_checkout: 'blue-gray'

@@ -11,6 +11,7 @@
  */
 
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -36,6 +37,9 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
+
+// Profile images are public read-only assets; writes still require the protected upload route.
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Router for API v1
 const apiRouter = express.Router();

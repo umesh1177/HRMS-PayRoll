@@ -33,6 +33,7 @@ import {
   ShieldCheckIcon,
   LockClosedIcon,
   PencilSquareIcon,
+  CameraIcon,
   CheckCircleIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
@@ -73,6 +74,8 @@ export default function ProfilePage() {
     photo_url: user?.photo_url || ''
   });
   const [savingProfile, setSavingProfile] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileError, setProfileError] = useState('');
 
@@ -89,6 +92,12 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -126,13 +135,26 @@ export default function ProfilePage() {
       });
 
       if (res.data?.data) {
-        const updated = res.data.data;
+        let updated = res.data.data;
+
+        // Upload the selected file separately because profile text uses JSON, while images use multipart.
+        if (selectedPhoto) {
+          const uploadData = new FormData();
+          uploadData.append('photo', selectedPhoto);
+          const uploadResponse = await axiosClient.post('/auth/profile/photo', uploadData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          updated = { ...updated, photo_url: uploadResponse.data?.data?.photo_url || updated.photo_url };
+        }
+
         setProfileData(updated);
         updateCachedUser({
           first_name: updated.first_name,
           last_name: updated.last_name,
           photo_url: updated.photo_url
         });
+        setSelectedPhoto(null);
+        setPhotoPreview('');
         setProfileSuccess('Personal profile updated successfully!');
         setTimeout(() => setProfileSuccess(''), 4000);
       }
@@ -142,6 +164,28 @@ export default function ProfilePage() {
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      setProfileError('Choose a JPG, PNG, WEBP, or GIF image.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError('Profile photo must be 5 MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+
+    setProfileError('');
+    setSelectedPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const handlePasswordSubmit = async (e) => {
@@ -184,7 +228,7 @@ export default function ProfilePage() {
   if (loading && !profileData) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Spinner className="h-10 w-10 text-indigo-600" />
+        <Spinner className="h-10 w-10 text-zinc-700" />
       </div>
     );
   }
@@ -197,12 +241,13 @@ export default function ProfilePage() {
     <div className="mt-4 flex flex-col gap-6 max-w-7xl mx-auto">
       {/* Profile Header Card */}
       <Card className="border border-blue-gray-100 shadow-sm overflow-hidden">
-        <div className="h-32 bg-gradient-to-r from-indigo-900 via-indigo-700 to-blue-600" />
+        <div className="h-32 bg-gradient-to-r from-zinc-950 via-zinc-800 to-zinc-600" />
         <CardBody className="p-6 relative pt-0">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 -mt-16 sm:-mt-14">
-            <div className="flex items-end gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 -mt-16 sm:-mt-14">
+            <div className="flex min-w-0 items-end gap-4">
               <Avatar
                 src={
+                  photoPreview ||
                   form.photo_url ||
                   profileData?.photo_url ||
                   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80'
@@ -213,11 +258,11 @@ export default function ProfilePage() {
                 className="border-4 border-white shadow-xl bg-white"
               />
               <div className="mb-2">
-                <Typography variant="h4" color="blue-gray" className="font-bold flex items-center gap-2">
+                <Typography variant="h4" color="blue-gray" className="max-w-full break-words font-bold leading-tight">
                   {displayName}
                 </Typography>
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <span className="text-xs text-blue-gray-500 font-medium flex items-center gap-1">
+                <div className="mt-2 flex max-w-full flex-wrap items-center gap-2">
+                  <span className="max-w-full break-all text-xs text-blue-gray-500 font-medium flex items-center gap-1">
                     <EnvelopeIcon className="h-3.5 w-3.5" />
                     {profileData?.email || user?.email}
                   </span>
@@ -225,24 +270,24 @@ export default function ProfilePage() {
                     <Chip
                       size="sm"
                       value={`ID: ${profileData.employee_code}`}
-                      className="bg-indigo-50 text-indigo-700 font-mono text-[10px] font-bold"
+                      className="bg-zinc-100 text-zinc-700 font-mono text-[10px] font-bold"
                     />
                   )}
                   <Chip
                     size="sm"
                     value={profileData?.role || user?.role || 'Member'}
-                    className="bg-emerald-50 text-emerald-700 text-[10px] font-bold capitalize"
+                    className="bg-zinc-900 text-white text-[10px] font-bold capitalize"
                   />
                   <Chip
                     size="sm"
                     value={profileData?.status || 'Active'}
-                    className="bg-blue-50 text-blue-700 text-[10px] font-semibold capitalize"
+                    className="bg-zinc-100 text-zinc-700 text-[10px] font-semibold capitalize"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="mb-2 text-right hidden md:block">
+            <div className="mb-2 hidden min-w-[150px] shrink-0 text-right md:block">
               <span className="text-xs text-blue-gray-400">Account Management</span>
               <p className="text-xs font-semibold text-blue-gray-700">Self-Service Profile</p>
             </div>
@@ -276,12 +321,12 @@ export default function ProfilePage() {
             </CardHeader>
             <CardBody className="p-6">
               {profileSuccess && (
-                <Alert color="green" icon={<CheckCircleIcon className="h-5 w-5" />} className="mb-4 text-xs">
+                <Alert color="green" icon={<CheckCircleIcon className="h-5 w-5" />} className="mb-4 border !border-[#bbf7d0] !bg-[#f0fdf4] text-xs !text-[#166534]">
                   {profileSuccess}
                 </Alert>
               )}
               {profileError && (
-                <Alert color="red" icon={<ExclamationCircleIcon className="h-5 w-5" />} className="mb-4 text-xs">
+                <Alert color="red" icon={<ExclamationCircleIcon className="h-5 w-5" />} className="mb-4 border !border-[#fecaca] !bg-[#fef2f2] text-xs !text-[#991b1b]">
                   {profileError}
                 </Alert>
               )}
@@ -335,19 +380,25 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-blue-gray-700 mb-1">
-                    Profile Photo URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com/avatar.jpg"
-                    value={form.photo_url}
-                    onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
-                    className="!border-blue-gray-200 focus:!border-indigo-600 text-xs"
-                  />
-                  <span className="text-[11px] text-blue-gray-400 mt-1 block">
-                    Paste an image URL to customize your dashboard avatar.
-                  </span>
+                  <label className="mb-1 block text-xs font-bold text-blue-gray-700">Profile Photo</label>
+                  <div className="flex flex-col gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4 sm:flex-row sm:items-center">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-200 text-zinc-500">
+                      {photoPreview || form.photo_url ? (
+                        <img src={photoPreview || form.photo_url} alt="Selected profile preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <CameraIcon className="h-6 w-6" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-black">
+                        <CameraIcon className="h-4 w-4" />
+                        Choose image
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handlePhotoChange} className="sr-only" />
+                      </label>
+                      <p className="mt-2 text-[11px] text-zinc-500">JPG, PNG, WEBP, or GIF. Maximum size: 5 MB.</p>
+                      {selectedPhoto && <p className="mt-1 truncate text-[11px] font-semibold text-zinc-700">Ready: {selectedPhoto.name}</p>}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end pt-2">
@@ -388,12 +439,12 @@ export default function ProfilePage() {
             </CardHeader>
             <CardBody className="p-6">
               {passwordSuccess && (
-                <Alert color="green" icon={<CheckCircleIcon className="h-5 w-5" />} className="mb-4 text-xs">
+                <Alert color="green" icon={<CheckCircleIcon className="h-5 w-5" />} className="mb-4 border !border-[#bbf7d0] !bg-[#f0fdf4] text-xs !text-[#166534]">
                   {passwordSuccess}
                 </Alert>
               )}
               {passwordError && (
-                <Alert color="red" icon={<ExclamationCircleIcon className="h-5 w-5" />} className="mb-4 text-xs">
+                <Alert color="red" icon={<ExclamationCircleIcon className="h-5 w-5" />} className="mb-4 border !border-[#fecaca] !bg-[#fef2f2] text-xs !text-[#991b1b]">
                   {passwordError}
                 </Alert>
               )}

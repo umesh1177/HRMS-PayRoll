@@ -18,6 +18,7 @@ const {
   isValidEnum,
   createValidationError
 } = require('../utils/validators');
+const { getDataScope } = require('../utils/accessScope');
 
 /**
  * Lists contracts with pagination and joined relation names.
@@ -30,6 +31,7 @@ async function listContracts(req, res, next) {
     const offset = (page - 1) * limit;
 
     const { employee_id, status, department_id } = req.query;
+    const dataScope = await getDataScope(req.user);
 
     let whereConditions = [];
     let queryParams = [];
@@ -51,6 +53,14 @@ async function listContracts(req, res, next) {
     } else if (employee_id) {
       whereConditions.push('c.employee_id = ?');
       queryParams.push(employee_id);
+    }
+
+    if (canManage && !dataScope.isAdmin) {
+      if (!dataScope.departmentId) {
+        return res.status(200).json({ data: [], pagination: { total: 0, page, limit, totalPages: 0 } });
+      }
+      whereConditions.push('c.department_id = ?');
+      queryParams.push(dataScope.departmentId);
     }
 
     if (status) {

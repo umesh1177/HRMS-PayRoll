@@ -644,7 +644,8 @@ async function updateMyProfile(req, res, next) {
     // Find linked employee ID (if any)
     let employeeId = user.employee_id;
     if (!employeeId) {
-      const [emp] = await connection.query('SELECT id FROM employees WHERE user_id = ? OR email = ? LIMIT 1', [userId, user.email]);
+      // The schema links users through users.employee_id; email is the legacy fallback.
+      const [emp] = await connection.query('SELECT id FROM employees WHERE email = ? LIMIT 1', [user.email]);
       if (emp.length > 0) {
         employeeId = emp[0].id;
       }
@@ -794,6 +795,54 @@ async function updateMyProfile(req, res, next) {
   }
 }
 
+/**
+ * Stores a validated profile image and returns its browser-accessible URL.
+ * The multipart middleware owns file validation; this function only persists the path.
+ */
+async function uploadProfilePhoto(req, res, next) {
+  try {
+    if (!req.file) {
+      const error = new Error('Choose an image file before uploading.');
+      error.status = 400;
+      error.code = 'PHOTO_REQUIRED';
+      return next(error);
+    }
+
+    const [users] = await pool.query('SELECT id, employee_id, email FROM users WHERE id = ?', [req.user.id]);
+    if (users.length === 0) {
+      const error = new Error('User account was not found.');
+      error.status = 404;
+      return next(error);
+    }
+
+    let employeeId = users[0].employee_id;
+    if (!employeeId) {
+      const [employees] = await pool.query(
+        'SELECT id FROM employees WHERE email = ? LIMIT 1',
+        [users[0].email]
+      );
+      employeeId = employees[0]?.id;
+    }
+
+    if (!employeeId) {
+      const error = new Error('Create your personal profile before uploading a photo.');
+      error.status = 400;
+      error.code = 'PROFILE_REQUIRED';
+      return next(error);
+    }
+
+    const photoUrl = `${req.protocol}://${req.get('host')}/uploads/profiles/${req.file.filename}`;
+    await pool.query('UPDATE employees SET photo_url = ? WHERE id = ?', [photoUrl, employeeId]);
+
+    res.status(200).json({
+      message: 'Profile photo uploaded successfully',
+      data: { photo_url: photoUrl }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   login,
   createUser,
@@ -802,5 +851,6 @@ module.exports = {
   listUsers,
   listRoles,
   getMe,
-  updateMyProfile
+  updateMyProfile,
+  uploadProfilePhoto
 };

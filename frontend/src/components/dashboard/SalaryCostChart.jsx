@@ -84,23 +84,23 @@ export default function SalaryCostChart({ data = [] }) {
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: '#71717a' }}
                   angle={-15}
                   textAnchor="end"
                   interval={0}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: '#71717a' }}
                   tickFormatter={(val) => `$${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar
                   dataKey="total_net_paid"
                   name="Net Salary ($)"
-                  fill="#4f46e5"
+                  fill="#18181b"
                   radius={[4, 4, 0, 0]}
                   barSize={32}
                 />
