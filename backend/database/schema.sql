@@ -211,6 +211,15 @@ CREATE TABLE users (
     CONSTRAINT fk_user_role     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS user_roles (
+    id       INT AUTO_INCREMENT PRIMARY KEY,
+    user_id  INT NOT NULL,
+    role_id  INT NOT NULL,
+    CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_user_role (user_id, role_id)
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------
 -- 6. SALARY STRUCTURES & RULES  (payroll configuration)
 -- ---------------------------------------------------------------------

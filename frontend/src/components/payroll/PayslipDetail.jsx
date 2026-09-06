@@ -24,6 +24,7 @@ import {
   PrinterIcon
 } from '@heroicons/react/24/outline';
 import Modal from '../common/Modal';
+import axiosClient from '../../api/axiosClient';
 import { printPayslip, downloadPayslip } from '../../utils/payslipPrinter';
 import { formatDateRange, formatDays, formatCurrency } from '../../utils/formatters';
 
@@ -130,7 +131,7 @@ export default function PayslipDetail({ open, onClose, payslip }) {
       ) : (
         <div className="flex flex-col gap-4">
           {/* Header Metadata */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-lg bg-blue-gray-50/60 border border-blue-gray-100 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 p-3 rounded-lg bg-blue-gray-50/60 border border-blue-gray-100 text-xs">
             <div>
               <span className="text-blue-gray-400 font-medium">Employee Code</span>
               <p className="font-mono font-bold text-indigo-700">{detailedSlip?.employee_code || payslip.employee_code}</p>
@@ -141,11 +142,23 @@ export default function PayslipDetail({ open, onClose, payslip }) {
             </div>
             <div>
               <span className="text-blue-gray-400 font-medium">Basic Wage</span>
-              <p className="font-bold text-blue-gray-800">{formatCurrency(detailedSlip?.basic_wage || payslip.basic_wage)}</p>
+              <p className="font-bold text-blue-gray-800">{formatCurrency(detailedSlip?.basic_wage ?? payslip.basic_wage)}</p>
             </div>
             <div>
               <span className="text-blue-gray-400 font-medium">Worked Days</span>
-              <p className="font-bold text-blue-gray-800">{formatDays(detailedSlip?.worked_days || payslip.worked_days)}</p>
+              <p className="font-bold text-blue-gray-800">{formatDays(detailedSlip?.worked_days ?? payslip.worked_days)}</p>
+            </div>
+            <div>
+              <span className="text-blue-gray-400 font-medium">Department</span>
+              <p className="font-semibold text-blue-gray-800">{detailedSlip?.department_name || payslip.department_name || '-'}</p>
+            </div>
+            <div>
+              <span className="text-blue-gray-400 font-medium">Job Position</span>
+              <p className="font-semibold text-blue-gray-800">{detailedSlip?.job_title || payslip.job_title || '-'}</p>
+            </div>
+            <div>
+              <span className="text-blue-gray-400 font-medium">Salary Structure</span>
+              <p className="font-semibold text-blue-gray-800">{detailedSlip?.structure_name || payslip.structure_name || '-'}</p>
             </div>
           </div>
 
@@ -214,14 +227,14 @@ export default function PayslipDetail({ open, onClose, payslip }) {
             <div>
               <span className="text-xs text-indigo-200">Gross Total Earnings</span>
               <p className="font-bold text-lg font-mono">
-                {formatCurrency(detailedSlip?.gross_amount || payslip.gross_amount)}
+                {formatCurrency(detailedSlip?.gross_amount ?? payslip.gross_amount)}
               </p>
             </div>
 
             <div className="text-right">
               <span className="text-xs font-semibold text-indigo-200 uppercase tracking-wide">Net Payable Salary</span>
               <p className="font-black text-2xl font-mono text-white">
-                {formatCurrency(detailedSlip?.net_amount || payslip.net_amount)}
+                {formatCurrency(detailedSlip?.net_amount ?? payslip.net_amount)}
               </p>
             </div>
           </div>

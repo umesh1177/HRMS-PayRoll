@@ -67,7 +67,11 @@ export default function EmployeesPage() {
   }, []);
 
   useEffect(() => {
-    fetchEmployees();
+    const debounceTimer = setTimeout(() => {
+      fetchEmployees();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
   }, [page, search]);
 
   /**

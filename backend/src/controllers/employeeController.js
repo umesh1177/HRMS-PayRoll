@@ -447,6 +447,7 @@ async function createEmployee(req, res, next) {
  */
 async function updateEmployee(req, res, next) {
   const connection = await pool.getConnection();
+  let transactionStarted = false;
   try {
     const { id } = req.params;
     const {
@@ -477,6 +478,7 @@ async function updateEmployee(req, res, next) {
     }
 
     await connection.beginTransaction();
+    transactionStarted = true;
 
     const updateSql = `
       UPDATE employees SET
@@ -513,6 +515,15 @@ async function updateEmployee(req, res, next) {
       id
     ]);
 
+    // Contracts cache department_id for payroll/reporting, so keep them aligned
+    // whenever an employee is moved to another department.
+    if (department_id !== undefined) {
+      await connection.query(
+        'UPDATE contracts SET department_id = ? WHERE employee_id = ?',
+        [department_id || null, id]
+      );
+    }
+
     let assignedRoleIds = null;
     if (Array.isArray(role_ids)) {
       assignedRoleIds = role_ids.map((r) => Number(r)).filter((r) => !isNaN(r) && r > 0);
@@ -544,9 +555,38 @@ async function updateEmployee(req, res, next) {
     }
 
     await connection.commit();
-    res.status(200).json({ message: 'Employee and user account updated successfully' });
+
+    const [updatedRows] = await pool.query(`
+      SELECT
+        e.id,
+        e.employee_code,
+        e.first_name,
+        e.last_name,
+        e.email,
+        e.phone,
+        e.department_id,
+        d.name AS department_name,
+        e.job_position_id,
+        jp.title AS job_title,
+        e.manager_id,
+        e.working_schedule_id,
+        e.status,
+        e.date_joined,
+        e.date_left,
+        e.photo_url
+      FROM employees e
+      LEFT JOIN departments d ON d.id = e.department_id
+      LEFT JOIN job_positions jp ON jp.id = e.job_position_id
+      WHERE e.id = ?
+      LIMIT 1
+    `, [id]);
+
+    res.status(200).json({
+      message: 'Employee and user account updated successfully',
+      data: updatedRows[0] || null
+    });
   } catch (err) {
-    await connection.rollback();
+    if (transactionStarted) await connection.rollback();
     next(err);
   } finally {
     connection.release();
